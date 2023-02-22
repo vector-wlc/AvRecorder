@@ -10,15 +10,15 @@
 #include "dxgi_capturer.h"
 #include "gdi_capturer.h"
 
-class AvCapturer {
+class VideoCapturer {
 public:
-    ~AvCapturer();
+    ~VideoCapturer();
     bool Open(HWND hwnd);
     AVFrame* GetFrame(bool isDrawCursor = true);
     void Close();
     int GetWidth() const;
     int GetHeight() const;
-    bool GetIsUseDxgi() const;
+    bool IsUseDxgi() const;
 
 private:
     bool _InitFrame(int width, int height);

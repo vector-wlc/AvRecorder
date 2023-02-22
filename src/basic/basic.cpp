@@ -4,6 +4,4 @@
  * @Date: 2023-02-06 11:53:50
  * @Description:
  */
-#include "basic.h"
-
-std::mutex __mtx;
+#include "basic/basic.h"

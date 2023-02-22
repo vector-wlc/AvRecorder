@@ -21,6 +21,8 @@ using MWComPtr = Microsoft::WRL::ComPtr<T>;
     } while (false)
 
 VideoRender::VideoRender()
+    : _xrgbToArgb(AV_PIX_FMT_BGR0, AV_PIX_FMT_RGBA)
+    , _rgbToArgb(AV_PIX_FMT_BGR24, AV_PIX_FMT_RGBA)
 {
 }
 VideoRender::~VideoRender()
@@ -65,14 +67,8 @@ bool VideoRender::Open(HWND hwnd, unsigned int width, unsigned int height)
 
     _context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 
-    if (!_xrgbToArgb.SetSize(width, height)) {
-        __DebugPrint("_XrgbToArgb.SetSize failed\n");
-        return false;
-    }
-    if (!_rgbToArgb.SetSize(width, height)) {
-        __DebugPrint("_rgbToArgb.SetSize failed\n");
-        return false;
-    }
+    __CheckBool(_xrgbToArgb.SetSize(width, height));
+    __CheckBool(_rgbToArgb.SetSize(width, height));
 
     return true;
 }
@@ -86,33 +82,18 @@ void VideoRender::Close()
 
 bool VideoRender::Trans(AVFrame* frame)
 {
-    if (_device == nullptr || _swapChain == nullptr || _context == nullptr) {
-        __DebugPrint("Call Open first\n");
-        return false;
-    }
-
+    __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
     if (frame == nullptr) { // frame 为 nullptr 就是直接刷新上一帧
         return true;
     }
-
-    _bufferFrame = frame->format == AV_PIX_FMT_BGR0 ? _xrgbToArgb.Trans(frame) : _rgbToArgb.Trans(frame);
-    if (_bufferFrame == nullptr) {
-        __DebugPrint("Trans failed\n");
-        return false;
-    }
+    __CheckBool(_bufferFrame = frame->format == AV_PIX_FMT_BGR0 ? _xrgbToArgb.Trans(frame) : _rgbToArgb.Trans(frame));
     return true;
 }
 
 bool VideoRender::Render()
 {
-    if (_device == nullptr || _swapChain == nullptr || _context == nullptr) {
-        __DebugPrint("Call Open first\n");
-        return false;
-    }
-    if (_bufferFrame == nullptr) {
-        __DebugPrint("_bufferFrame == nullptr\n");
-        return false;
-    }
+    __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
+    __CheckBool(_bufferFrame);
     MWComPtr<ID3D11Texture2D> pBackBuffer;
     __D3dCall(false, _swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer));
     _context->UpdateSubresource(pBackBuffer.Get(), 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);

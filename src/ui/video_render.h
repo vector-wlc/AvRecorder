@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <tchar.h>
 
-#include "pix_transformer.h"
+#include "basic/frame.h"
 
 class VideoRender {
 
@@ -31,8 +31,8 @@ private:
     IDXGISwapChain* _swapChain = nullptr;
     ID3D11Device* _device = nullptr;
     ID3D11DeviceContext* _context = nullptr;
-    PixTransformer<AV_PIX_FMT_BGR0, AV_PIX_FMT_RGBA> _xrgbToArgb;
-    PixTransformer<AV_PIX_FMT_BGR24, AV_PIX_FMT_RGBA> _rgbToArgb;
+    PixTransformer _xrgbToArgb;
+    PixTransformer _rgbToArgb;
     AVFrame* _bufferFrame = nullptr;
 };
 

@@ -6,7 +6,7 @@
  */
 #include "gdi_capturer.h"
 
-#include "basic.h"
+#include "basic/basic.h"
 
 bool GdiCapturer::Open(HWND hwnd, int width, int height)
 {
@@ -22,7 +22,7 @@ bool GdiCapturer::Open(HWND hwnd, int width, int height)
     _bitmapInfo.bmiHeader.biPlanes = 1;
     _bitmapInfo.bmiHeader.biBitCount = 24;
     _bitmapInfo.bmiHeader.biWidth = width;
-    _bitmapInfo.bmiHeader.biHeight = -height;
+    _bitmapInfo.bmiHeader.biHeight = height;
     _bitmapInfo.bmiHeader.biCompression = BI_RGB;
     _bitmapInfo.bmiHeader.biSizeImage = width * height;
 
@@ -32,20 +32,18 @@ bool GdiCapturer::Open(HWND hwnd, int width, int height)
 
 HDC GdiCapturer::CaptureImage(int borderWidth, int borderHeight)
 {
-    if (BitBlt(_dstHdc, 0, 0, _width, _height,
-            _srcHdc, borderWidth / 2, borderHeight - borderWidth / 2, SRCCOPY)
-        == 0) {
-        __DebugPrint("BitBlt failed\n");
-        return nullptr;
-    }
+    __CheckNullptr(
+        BitBlt(_dstHdc, 0, 0, _width, _height,
+            _srcHdc, borderWidth / 2, borderHeight - borderWidth / 2, SRCCOPY));
+
     return _dstHdc;
 }
 
 bool GdiCapturer::WriteImage(AVFrame* frame)
 {
-    if (GetDIBits(_dstHdc, _bitmap, 0, _height, frame->data[0], &_bitmapInfo, DIB_RGB_COLORS) == 0) {
-        __DebugPrint("GetDIBits failed\n");
-        return false;
+    auto linesize = frame->linesize[0];
+    for (int row = 0; row < _height; ++row) {
+        __CheckBool(GetDIBits(_dstHdc, _bitmap, _height - 1 - row, 1, frame->data[0] + row * linesize, &_bitmapInfo, DIB_RGB_COLORS));
     }
     return true;
 }

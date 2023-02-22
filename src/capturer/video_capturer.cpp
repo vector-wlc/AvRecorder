@@ -1,17 +1,12 @@
-#include "av_capturer.h"
+#include "video_capturer.h"
+#include "basic/frame.h"
 
-bool AvCapturer::Open(HWND hwnd)
+bool VideoCapturer::Open(HWND hwnd)
 {
     Close();
-    if (hwnd == nullptr) {
-        __DebugPrint("hwnd can't be nullptr\n");
-        return false;
-    }
+    __CheckBool(hwnd);
     _srcHwnd = hwnd;
-    if (!_GetHwndSize(_srcHwnd)) {
-        __DebugPrint("_GetHwndSize failed\n");
-        return false;
-    }
+    __CheckBool(_GetHwndSize(_srcHwnd));
     _isUseDxgi = false;
     if (GetDesktopWindow() == hwnd) { // DXGI 是用于加速桌面录制的技术
         _isUseDxgi = _dxgiCapturer.Open();
@@ -20,15 +15,16 @@ bool AvCapturer::Open(HWND hwnd)
         }
     }
     if (!_isUseDxgi) { // DXGI 无法使用，使用 GDI 截屏
-        __DebugPrint("Use GDI\n");
-        _gdiCapturer.Open(hwnd, _width, _height);
+        __DebugPrint("Use GDI");
+        __CheckBool(_gdiCapturer.Open(hwnd, _width, _height));
     } else {
-        __DebugPrint("Use DXGI\n");
+        __DebugPrint("Use DXGI");
     }
-    return _InitFrame(_width, _height);
+    __CheckBool(_InitFrame(_width, _height));
+    return true;
 }
 
-AVFrame* AvCapturer::GetFrame(bool isDrawCursor)
+AVFrame* VideoCapturer::GetFrame(bool isDrawCursor)
 {
     HDC hdc = _isUseDxgi ? _dxgiCapturer.CaptureImage() : _gdiCapturer.CaptureImage(_borderWidth, _borderHeight);
     if (hdc == nullptr) {
@@ -44,57 +40,47 @@ AVFrame* AvCapturer::GetFrame(bool isDrawCursor)
     return nullptr;
 }
 
-bool AvCapturer::GetIsUseDxgi() const
+bool VideoCapturer::IsUseDxgi() const
 {
     return _isUseDxgi;
 }
 
-void AvCapturer::Close()
+void VideoCapturer::Close()
 {
     _isUseDxgi ? _dxgiCapturer.Close() : _gdiCapturer.Close();
     Free(_frameRgb, [this] { av_frame_free(&_frameRgb); });
     Free(_frameXrgb, [this] { av_frame_free(&_frameXrgb); });
 }
 
-AvCapturer::~AvCapturer()
+VideoCapturer::~VideoCapturer()
 {
     Close();
 }
 
-int AvCapturer::GetWidth() const
+int VideoCapturer::GetWidth() const
 {
     return _width;
 }
-int AvCapturer::GetHeight() const
+int VideoCapturer::GetHeight() const
 {
     return _height;
 }
 
-bool AvCapturer::_InitFrame(int width, int height)
+bool VideoCapturer::_InitFrame(int width, int height)
 {
     auto&& frame = _isUseDxgi ? _frameXrgb : _frameRgb;
     auto format = _isUseDxgi ? AV_PIX_FMT_BGR0 : AV_PIX_FMT_BGR24;
-    frame = AllocFrame(format, width, height);
-    if (frame == nullptr) {
-        __DebugPrint("_AllocFrame failed\n");
-        return false;
-    }
+    __CheckBool(frame = Frame<MediaType::VIDEO>::Alloc(format, width, height));
     return true;
 }
 
-bool AvCapturer::_GetHwndSize(HWND hwnd)
+bool VideoCapturer::_GetHwndSize(HWND hwnd)
 {
     RECT rect;
-    if (!GetClientRect(hwnd, &rect)) {
-        __DebugPrint("GetClientRect failed\n");
-        return false;
-    }
+    __CheckBool(GetClientRect(hwnd, &rect));
     _width = (rect.right - rect.left);
     _height = (rect.bottom - rect.top);
-    if (!GetWindowRect(hwnd, &rect)) {
-        __DebugPrint("GetWindowRect failed\n");
-        return false;
-    }
+    __CheckBool(GetWindowRect(hwnd, &rect));
     _borderHeight = rect.bottom - rect.top - _height;
     _borderWidth = rect.right - rect.left - _width;
     if (_borderHeight < 0) {
@@ -106,16 +92,13 @@ bool AvCapturer::_GetHwndSize(HWND hwnd)
     return true;
 }
 
-void AvCapturer::_DrawCursor(HDC hdc)
+void VideoCapturer::_DrawCursor(HDC hdc)
 {
     CURSORINFO ci;
     ci.cbSize = sizeof(CURSORINFO);
-    if (!GetCursorInfo(&ci)) {
-        __DebugPrint("GetCursorInfo failed\n");
-        return;
-    }
+    __CheckNo(GetCursorInfo(&ci));
     RECT rect;
-    GetWindowRect(_srcHwnd, &rect);
+    __CheckNo(GetWindowRect(_srcHwnd, &rect));
     rect.left += _borderWidth / 2;
     rect.right -= _borderWidth / 2;
     rect.top += _borderHeight - _borderWidth / 2;
@@ -124,6 +107,6 @@ void AvCapturer::_DrawCursor(HDC hdc)
         // 将光标画到屏幕所在位置
         int x = ci.ptScreenPos.x - rect.left;
         int y = ci.ptScreenPos.y - rect.top;
-        DrawIconEx(hdc, x, y, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL | DI_COMPAT);
+        __CheckNo(DrawIconEx(hdc, x, y, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL | DI_COMPAT));
     }
 }

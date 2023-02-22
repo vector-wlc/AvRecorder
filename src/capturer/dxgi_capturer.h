@@ -7,7 +7,7 @@
 #ifndef __DXGI_CAPTURER_H__
 #define __DXGI_CAPTURER_H__
 
-#include "basic.h"
+#include "basic/basic.h"
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <stdio.h>
