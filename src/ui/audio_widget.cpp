@@ -1,3 +1,9 @@
+/*
+ * @Coding: utf-8
+ * @Author: vector-wlc
+ * @Date: 2023-02-20 19:18:17
+ * @Description: 
+ */
 
 #include "audio_widget.h"
 #include <QLayout>
@@ -42,7 +48,10 @@ void AudioWidget::_CreateConnect()
         }
     });
 
-    connect(_volumeBox, &QDoubleSpinBox::valueChanged, [this] {
+    void (QDoubleSpinBox::*valueChanged)(double) = &(QDoubleSpinBox::valueChanged);
+
+
+    connect(_volumeBox, valueChanged, [this] {
         emit SetVolumeScale(_volumeBox->value());
     });
 }

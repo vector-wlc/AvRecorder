@@ -13,6 +13,7 @@ SettingsPage::SettingsPage(Param* param, QWidget* parent)
     : QDialog(parent)
     , _param(param)
 {
+    setFont(QFont("Microsoft Yahei"));
     _InitUi();
     _InitConnect();
 }

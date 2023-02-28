@@ -5,7 +5,7 @@
  * @Description: 
 -->
 # AvRecorder
-Record audio and video via DXGI, BitBlt, CoreAudio, DirectX11 and FFmpeg
+Record audio and video via WGC, DXGI, BitBlt, CoreAudio, DirectX11 and FFmpeg
 
 Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
 
@@ -13,6 +13,8 @@ Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
 
 * 使用 DXGI 录制桌面
 * 使用 BitBlt 录制窗口
+* 使用 WGC 捕获桌面和窗口
+* 多显示器的支持
 * 使用 DirectX11 对捕获的画面进行渲染
 * 使用 FFmpeg 对捕获的画面进行编码
 * 使用 CoreAudio 录制麦克风和扬声器
@@ -38,3 +40,8 @@ Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
 * 音频混音过滤链必须每次 unref, 不然会导致内存泄漏
 * 音频捕获当电脑没有播放器播放声音时, 扬声器会停止工作, 这会导致一系列严重的问题: 混音失败、编码失败、音画不同步等, 这里采用的方案是循环播放一个静音的音频，强制让扬声器工作
 * DXGI 截屏当桌面没有画面刷新时, 会返回一个错误码, 不过这没事, 直接让编码器编码上一帧的缓存即可
+
+## 关于性能
+* CPU 软件编码设置为 veryfast, 以降低 CPU 的占用
+* 截取画面从 GPU 到 CPU 需要调用 Map 函数, 这个函数实际上很坑的, 因为他必须等待 GPU 把这帧画面绘制完成才能工作, 这样 CPU 就得搁那干等, 究极浪费性能, 解决方案就是多缓存几个 Texture, 这样做就是增加了延迟, 但是这无所谓, 录屏谁在乎那几帧的延迟呢,肉眼是看不出来的
+* 尚未解决：像素格式转换 CPU 占用高, 据说 D3D11 能在硬件层面完成像素转换

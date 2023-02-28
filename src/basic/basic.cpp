@@ -5,3 +5,5 @@
  * @Description:
  */
 #include "basic/basic.h"
+
+std::mutex __mtx;

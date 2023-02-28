@@ -69,7 +69,6 @@ bool VideoRender::Open(HWND hwnd, unsigned int width, unsigned int height)
 
     __CheckBool(_xrgbToArgb.SetSize(width, height));
     __CheckBool(_rgbToArgb.SetSize(width, height));
-
     return true;
 }
 
@@ -83,9 +82,6 @@ void VideoRender::Close()
 bool VideoRender::Trans(AVFrame* frame)
 {
     __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
-    if (frame == nullptr) { // frame 为 nullptr 就是直接刷新上一帧
-        return true;
-    }
     __CheckBool(_bufferFrame = frame->format == AV_PIX_FMT_BGR0 ? _xrgbToArgb.Trans(frame) : _rgbToArgb.Trans(frame));
     return true;
 }
@@ -98,5 +94,6 @@ bool VideoRender::Render()
     __D3dCall(false, _swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer));
     _context->UpdateSubresource(pBackBuffer.Get(), 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);
     __D3dCall(false, _swapChain->Present(0, 0));
+    pBackBuffer->Release();
     return true;
 }

@@ -15,34 +15,32 @@
 
 class VideoRecorder {
 public:
-    bool Open(HWND srcHwnd, Encoder<MediaType::VIDEO>::Param& param);
+    bool Open(HWND srcHwnd, Encoder<MediaType::VIDEO>::Param& param, VideoCapturer::Method type);
+    bool Open(int monitorIdx, Encoder<MediaType::VIDEO>::Param& param, VideoCapturer::Method type);
     bool LoadMuxer(AvMuxer& muxer);
     bool StartRecord();
     void StopRecord();
-    bool IsUseDxgi() { return _capturer.IsUseDxgi(); }
-    AVFrame* GetRenderFrame() const { return _renderFrame; };
+    auto GetCapturerType() { return _capturer.GetMethod(); }
+    AVFrame* GetRenderFrame() const { return _encodeFrame; };
     // 停止录制
     void Close();
     void SetIsDrawCursor(bool isDraw)
     {
-        _isDrawCursor = isDraw;
+        _capturer.SetDrawCursor(isDraw);
     }
     bool IsEncodeOverload() const { return _isEncodeOverload; }
     bool IsCaptureOverload() const { return _captureTimer.IsOverload(); }
 
 private:
+    bool _Open(Encoder<MediaType::VIDEO>::Param& param);
     VideoCapturer _capturer;
     AvMuxer* _muxer = nullptr;
     bool _isRecord = false;
     int _streamIndex = -1;
-    AVFrame* _renderFrame = nullptr;
-    std::condition_variable _muxCondVar;
-    std::mutex _muxMtx;
+    AVFrame* _encodeFrame = nullptr;
     Encoder<MediaType::VIDEO>::Param _param;
-    std::queue<Frame<MediaType::VIDEO>> _queue;
     Timer _captureTimer;
     Timer _muxTimer;
-    bool _isDrawCursor = true;
     bool _isEncodeOverload = false;
 };
 #endif

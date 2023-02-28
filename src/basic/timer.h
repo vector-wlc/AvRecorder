@@ -20,9 +20,9 @@ public:
 
     // interval 为 0 表示时刻执行
     template <typename Func>
-        requires std::is_convertible_v<Func, std::function<void()>>
     void Start(int fps, Func&& func)
     {
+        static_assert(std::is_convertible_v<Func, std::function<void()>>, "func need to be std::function<void()>");
         _fps = fps;
         _tickCnt = 0;
         _isOverload = false;

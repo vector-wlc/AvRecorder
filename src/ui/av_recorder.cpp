@@ -8,6 +8,7 @@
 #include "av_recorder.h"
 #include <QDateTime>
 #include <QStatusBar>
+#include <capturer/finder.h>
 
 AvRecorder::AvRecorder(QWidget* parent)
     : QMainWindow(parent)
@@ -18,11 +19,83 @@ AvRecorder::AvRecorder(QWidget* parent)
     _settingsParam.videoParam.name = Encoder<MediaType::VIDEO>::GetUsableEncoders().front();
     _settingsParam.outputDir = ".";
 
+    WgcCapturer::Init();
     _InitUi();
-    _lastHwnd = GetDesktopWindow();
-    _StartCapture(_lastHwnd);
-    _StartPreview();
     _InitConnect();
+}
+
+void AvRecorder::_InitConnect()
+{
+    // 启动
+    auto timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, [this, timer] {
+        _isLocked = true;
+        _StopPreview();
+        _StopCapture();
+        _StartCapture(VideoCapturer::WGC);
+        _StartPreview();
+        _isLocked = false;
+        timer->stop();
+    });
+    timer->start(100);
+
+    connect(_recordBtn, &QPushButton::released, [this] {
+        if (!_isRecord) {
+            _StartRecord();
+            _recordBtn->setText("停止录制");
+        } else {
+            _StopRecord();
+            _recordBtn->setText("开始录制");
+        }
+    });
+    connect(_microphoneWidget, &AudioWidget::SetVolumeScale, [this](float scale) {
+        _audioRecorder.SetVolumeScale(scale, MICROPHONE_INDEX);
+    });
+    connect(_speakerWidget, &AudioWidget::SetVolumeScale, [this](float scale) {
+        _audioRecorder.SetVolumeScale(scale, SPEAKER_INDEX);
+    });
+    connect(_updateListBtn, &QPushButton::released, [this] {
+        _UpdateCaptureList();
+    });
+    connect(_captureListWidget, &QListWidget::currentTextChanged, [this](const QString& text) {
+        if (text.isEmpty() || _isLocked) {
+            return;
+        }
+        _isLocked = true;
+        _StopPreview();
+        _StopCapture();
+        _StartCapture(VideoCapturer::WGC);
+        _StartPreview();
+        _isLocked = false;
+    });
+    connect(_isDrawCursorBox, &QCheckBox::stateChanged, [this] {
+        _videoRecorder.SetIsDrawCursor(_isDrawCursorBox->isChecked());
+    });
+    connect(_captureMethodBox, &QComboBox::currentTextChanged, [this](const QString& text) {
+        if (_isLocked || text.isEmpty()) {
+            return;
+        }
+        _StopPreview();
+        _StopCapture();
+        if (text == "WGC") {
+            _StartCapture(VideoCapturer::WGC);
+        } else if (text == "DXGI") {
+            _StartCapture(VideoCapturer::DXGI);
+        } else {
+            _StartCapture(VideoCapturer::GDI);
+        }
+        _StartPreview();
+    });
+    connect(_settingsBtn, &QPushButton::released, [this] {
+        auto settingsPage = std::make_unique<SettingsPage>(&_settingsParam, this);
+        settingsPage->exec();
+        _isLocked = true;
+        _StopPreview();
+        _StopCapture();
+        _StartCapture(VideoCapturer::WGC);
+        _StartPreview();
+        _isLocked = false;
+    });
 }
 
 AvRecorder::~AvRecorder()
@@ -30,15 +103,45 @@ AvRecorder::~AvRecorder()
     _StopRecord();
     _StopPreview();
     _StopCapture();
+    WgcCapturer::Uninit();
 }
 
-void AvRecorder::_StartCapture(HWND hwnd)
+void AvRecorder::_StartCapture(VideoCapturer::Method method)
+{
+    if (_isLocked) {
+        _captureMethodBox->clear();
+        _captureMethodBox->addItem("WGC");
+    }
+
+    // 判断是要捕获屏幕还是窗口
+    int idx = _captureListWidget->currentRow();
+    if (idx < 0) {
+        idx = 0;
+        _captureListWidget->setCurrentRow(idx);
+    }
+    int monitorCnt = MonitorFinder::GetList().size();
+    if (idx < monitorCnt) { // 捕获屏幕
+        if (_captureMethodBox->count() < 2) {
+            _captureMethodBox->addItem("DXGI");
+        }
+        _videoRecorder.Open(idx, _settingsParam.videoParam, method);
+    } else {
+        if (_captureMethodBox->count() < 2) {
+            _captureMethodBox->addItem("GDI");
+        }
+        auto hwnd = WindowFinder::GetList()[idx - monitorCnt].hwnd;
+        _videoRecorder.Open(hwnd, _settingsParam.videoParam, method);
+    }
+    _DealCapture();
+    _isDrawCursorBox->setEnabled(true);
+    _recordBtn->setEnabled(true);
+}
+
+void AvRecorder::_DealCapture()
 {
     __CheckNo(_audioRecorder.Open({AudioCapturer::Microphone, AudioCapturer::Speaker}, _settingsParam.audioParam));
-    __CheckNo(_videoRecorder.Open(hwnd, _settingsParam.videoParam));
     _microphoneWidget->setEnabled(_audioRecorder.GetCaptureInfo(MICROPHONE_INDEX)->isUsable);
     _speakerWidget->setEnabled(_audioRecorder.GetCaptureInfo(SPEAKER_INDEX)->isUsable);
-    _captureMethodLabel->setText(_videoRecorder.IsUseDxgi() ? "捕获方式: DXGI" : "捕获方式: GDI");
     _fpsLabel->setText(QString("FPS: %1").arg(_settingsParam.videoParam.fps));
     _videoEncodeLabel->setText(("编码器: " + _settingsParam.videoParam.name).c_str());
 }
@@ -117,7 +220,8 @@ void AvRecorder::_StartRecord()
     if (fileName.back() != '\\') {
         fileName.push_back('\\');
     }
-    fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
+    // fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
+    fileName += "test.mp4";
     __CheckNo(_avMuxer.Open(fileName));
     __CheckNo(_audioRecorder.LoadMuxer(_avMuxer));
     __CheckNo(_videoRecorder.LoadMuxer(_avMuxer));
@@ -127,8 +231,9 @@ void AvRecorder::_StartRecord()
     _recordTime = QTime::currentTime();
     _captureStatusLabel->setText("状态: 正在录制");
     _settingsBtn->setEnabled(false);
-    _windowListWidget->setEnabled(false);
+    _captureListWidget->setEnabled(false);
     _updateListBtn->setEnabled(false);
+    _captureMethodBox->setEnabled(false);
     _isRecord = true;
 }
 
@@ -140,76 +245,22 @@ void AvRecorder::_StopRecord()
     _avMuxer.Close();
     _captureStatusLabel->setText("状态: 正常");
     _settingsBtn->setEnabled(true);
-    _windowListWidget->setEnabled(true);
+    _captureListWidget->setEnabled(true);
     _updateListBtn->setEnabled(true);
+    _captureMethodBox->setEnabled(true);
 }
 
-void AvRecorder::_InitConnect()
+void AvRecorder::_UpdateCaptureList()
 {
-    connect(_recordBtn, &QPushButton::released, [this] {
-        __DebugPrint("Release _recordBtn %d\n", _isRecord);
-        if (!_isRecord) {
-            _StartRecord();
-            _recordBtn->setText("停止录制");
-        } else {
-            _StopRecord();
-            _recordBtn->setText("开始录制");
-        }
-    });
-
-    connect(_microphoneWidget, &AudioWidget::SetVolumeScale, [this](float scale) {
-        _audioRecorder.SetVolumeScale(scale, MICROPHONE_INDEX);
-    });
-    connect(_speakerWidget, &AudioWidget::SetVolumeScale, [this](float scale) {
-        _audioRecorder.SetVolumeScale(scale, SPEAKER_INDEX);
-    });
-    connect(_updateListBtn, &QPushButton::released, [this] {
-        _UpdateWindowList();
-    });
-    connect(_windowListWidget, &QListWidget::currentTextChanged, [this](const QString& text) {
-        HWND hwnd = text == "桌面" ? GetDesktopWindow() : FindWindowW(nullptr, text.toStdWString().c_str());
-        if (hwnd == nullptr || hwnd == _lastHwnd) {
-            return;
-        }
-        _lastHwnd = hwnd;
-        _StopPreview();
-        _StopCapture();
-        _StartCapture(_lastHwnd);
-        _StartPreview();
-    });
-    connect(_settingsBtn, &QPushButton::released, [this] {
-        auto settingsPage = std::make_unique<SettingsPage>(&_settingsParam, this);
-        settingsPage->exec();
-        _StopPreview();
-        _StopCapture();
-        _StartCapture(_lastHwnd);
-        _StartPreview();
-    });
-    connect(_isDrawCursorBox, &QCheckBox::stateChanged, [this] {
-        _videoRecorder.SetIsDrawCursor(_isDrawCursorBox->isChecked());
-    });
-}
-
-BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) // 回调函数
-{
-    wchar_t szTitle[200];
-    wchar_t szClass[200];
-    auto windowListWidget = (QListWidget*)lParam;
-    GetWindowTextW(hwnd, szTitle, sizeof(szTitle) / sizeof(wchar_t));     // 获取窗口名称
-    GetClassNameW(hwnd, szClass, sizeof(szClass) / sizeof(wchar_t));      // 窗口类
-    if (szTitle[0] != '\0' && IsWindowVisible(hwnd) && !IsIconic(hwnd)) { // 判断窗口标题不为空，并且窗口可见
-        windowListWidget->addItem(QString::fromWCharArray(szTitle));      // 添加到临时list中
+    _captureListWidget->clear();
+    auto&& monitorList = MonitorFinder::GetList(true);
+    for (auto&& monitor : monitorList) {
+        _captureListWidget->addItem("屏幕: " + QString::fromStdWString(monitor.title));
     }
-    return TRUE;
-}
-
-void AvRecorder::_UpdateWindowList()
-{
-    _windowListWidget->clear();
-    _windowListWidget->addItem("桌面");
-    _windowListWidget->setCurrentItem(0);
-    LPARAM lParam = (LPARAM)_windowListWidget;
-    EnumWindows(EnumWindowsProc, lParam);
+    auto&& windowList = WindowFinder::GetList(true);
+    for (auto&& window : windowList) {
+        _captureListWidget->addItem("窗口: " + QString::fromStdWString(window.title));
+    }
 }
 
 void AvRecorder::_InitUi()
@@ -228,14 +279,14 @@ void AvRecorder::_InitUi()
     layout->addLayout(hLayout, 1);
     widget->setLayout(layout);
     this->setCentralWidget(widget);
-    _UpdateWindowList();
+    _UpdateCaptureList();
 }
 
 QVBoxLayout* AvRecorder::_InitListUi()
 {
     auto layout = new QVBoxLayout;
-    _windowListWidget = new QListWidget;
-    layout->addWidget(_windowListWidget);
+    _captureListWidget = new QListWidget;
+    layout->addWidget(_captureListWidget);
     return layout;
 }
 
@@ -255,8 +306,10 @@ QVBoxLayout* AvRecorder::_InitOtherUi()
 {
     _isDrawCursorBox = new QCheckBox("绘制鼠标指针");
     _isDrawCursorBox->setChecked(true);
+    _isDrawCursorBox->setEnabled(false);
     _updateListBtn = new QPushButton("刷新窗口列表");
     _recordBtn = new QPushButton("开始录制");
+    _recordBtn->setEnabled(false);
     _settingsBtn = new QPushButton("设置");
     auto layout = new QVBoxLayout;
     layout->addWidget(_isDrawCursorBox);
@@ -270,14 +323,19 @@ void AvRecorder::_InitStatusBarUi()
 {
     auto layout = new QHBoxLayout;
     _videoEncodeLabel = new QLabel;
-    _captureMethodLabel = new QLabel("捕获方式: GDI");
+    auto hLayout = new QHBoxLayout;
+    hLayout->addWidget(new QLabel("捕获方式:"));
+    _captureMethodBox = new QComboBox;
+    hLayout->addWidget(_captureMethodBox);
     _captureStatusLabel = new QLabel("状态: 正常");
     _captureTimeLabel = new QLabel("00:00:00");
     _fpsLabel = new QLabel("FPS: 30");
     auto statusBar = this->statusBar();
     statusBar->layout()->setSpacing(20);
     statusBar->layout()->addWidget(_videoEncodeLabel);
-    statusBar->layout()->addWidget(_captureMethodLabel);
+    auto widget = new QWidget;
+    widget->setLayout(hLayout);
+    statusBar->layout()->addWidget(widget);
     statusBar->layout()->addWidget(_captureStatusLabel);
     statusBar->layout()->addWidget(_captureTimeLabel);
     statusBar->layout()->addWidget(_fpsLabel);

@@ -9,23 +9,40 @@
 
 #include "dxgi_capturer.h"
 #include "gdi_capturer.h"
+#include "wgc_capturer.h"
 
 class VideoCapturer {
 public:
+    enum Method {
+        GDI,
+        DXGI,
+        WGC
+    };
+
+    enum Type {
+        WINDOW,
+        MONITOR
+    };
     ~VideoCapturer();
-    bool Open(HWND hwnd);
-    AVFrame* GetFrame(bool isDrawCursor = true);
+    bool Open(HWND hwnd, Method method);
+    bool Open(int monitorIdx, Method method);
+    AVFrame* GetFrame();
+    void SetDrawCursor(bool isDrawCursor);
     void Close();
     int GetWidth() const;
     int GetHeight() const;
-    bool IsUseDxgi() const;
+    Method GetMethod() const { return _usingMethod; }
 
 private:
     bool _InitFrame(int width, int height);
     bool _GetHwndSize(HWND hwnd);
     void _DrawCursor(HDC hdc);
-    DxgiCapturer _dxgiCapturer;
-    GdiCapturer _gdiCapturer;
+    Method _usingMethod = WGC;
+    RECT _rect;
+    Type _type = MONITOR;
+    DxgiCapturer* _dxgiCapturer = nullptr;
+    GdiCapturer* _gdiCapturer = nullptr;
+    WgcCapturer* _wgcCapturer = nullptr;
     AVFrame* _frameRgb = nullptr;
     AVFrame* _frameXrgb = nullptr;
     int _width = 0;
@@ -33,6 +50,6 @@ private:
     int _borderHeight = 0;
     int _borderWidth = 0;
     HWND _srcHwnd = nullptr;
-    bool _isUseDxgi = false;
+    bool _isDrawCursor = true;
 };
 #endif

@@ -12,7 +12,7 @@ DxgiCapturer::~DxgiCapturer()
     Close();
 }
 
-bool DxgiCapturer::Open()
+bool DxgiCapturer::Open(int idx)
 {
     Close();
     HRESULT hr = S_OK;
@@ -63,7 +63,7 @@ bool DxgiCapturer::Open()
     // Get output
     INT nOutput = 0;
     IDXGIOutput* hDxgiOutput = nullptr;
-    hr = hDxgiAdapter->EnumOutputs(nOutput, &hDxgiOutput);
+    hr = hDxgiAdapter->EnumOutputs(idx, &hDxgiOutput);
     Free(hDxgiAdapter, [=] { hDxgiAdapter->Release(); });
     __CheckBool(SUCCEEDED(hr));
 
@@ -92,15 +92,10 @@ void DxgiCapturer::Close()
     }
 
     _bInit = false;
+    _bufferFiller.Clear();
     Free(_hDeskDupl, [this] { _hDeskDupl->Release(); });
     Free(_hDevice, [this] { _hDevice->Release(); });
     Free(_hContext, [this] { _hContext->Release(); });
-}
-
-bool DxgiCapturer::ResetDevice()
-{
-    Close();
-    return Open();
 }
 
 HDC DxgiCapturer::CaptureImage()
@@ -144,17 +139,7 @@ HDC DxgiCapturer::CaptureImage()
         Free(_hDeskDupl, [this] { _hDeskDupl->ReleaseFrame(); });
         return nullptr;
     }
-
-    _textureDesc.ArraySize = 1;
-    _textureDesc.BindFlags = 0;
-    _textureDesc.MiscFlags = 0;
-    _textureDesc.SampleDesc.Count = 1;
-    _textureDesc.SampleDesc.Quality = 0;
-    _textureDesc.MipLevels = 1;
-    _textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-    _textureDesc.Usage = D3D11_USAGE_STAGING;
-    hr = _hDevice->CreateTexture2D(&_textureDesc, nullptr, &_dstImage);
-    if (FAILED(hr)) {
+    if (!_bufferFiller.Fill(_hDevice, _textureDesc)) {
         __DebugPrint("Create _dstImage failed");
         Free(srcImage, [=] { srcImage->Release(); });
         Free(_hDeskDupl, [this] { _hDeskDupl->ReleaseFrame(); });
@@ -185,29 +170,29 @@ HDC DxgiCapturer::CaptureImage()
 bool DxgiCapturer::WriteImage(AVFrame* frame)
 {
     __CheckBool(frame);
-    __CheckBool(_isCaptureSuccess);
+    if (!_isCaptureSuccess) {
+        return true;
+    }
     _isCaptureSuccess = false;
     _hStagingSurf->ReleaseDC(nullptr);
-    _hContext->CopyResource(_dstImage, _gdiImage);
+    _hContext->CopyResource(_bufferFiller.GetCopy(), _gdiImage);
 
     // Copy from CPU access texture to bitmap buffer
     D3D11_MAPPED_SUBRESOURCE resource;
     UINT subresource = D3D11CalcSubresource(0, 0, 0);
-    __CheckBool(SUCCEEDED(_hContext->Map(_dstImage, subresource, D3D11_MAP_READ_WRITE, 0, &resource)));
-
+    __CheckBool(SUCCEEDED(_hContext->Map(_bufferFiller.GetMap(), subresource, D3D11_MAP_READ, 0, &resource)));
     int height = frame->height;
     int width = frame->width;
     int srcLinesize = resource.RowPitch;
     int dstLinesize = frame->linesize[0];
     auto srcData = (uint8_t*)resource.pData;
     auto dstData = frame->data[0];
-
     for (int row = 0; row < height; ++row) {
         memcpy(dstData + row * dstLinesize, srcData + row * srcLinesize, width * 4);
     }
-
+    _hContext->Unmap(_bufferFiller.GetMap(), 0);
+    _bufferFiller.Reset();
     Free(_hStagingSurf, [this] { _hStagingSurf->Release(); });
-    Free(_dstImage, [this] { _dstImage->Release(); });
     Free(_gdiImage, [this] { _gdiImage->Release(); });
     return true;
 }

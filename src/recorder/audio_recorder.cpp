@@ -44,6 +44,7 @@ bool AudioRecorder::Open(
     __CheckBool((streamIndex = muxer.AddAudioStream(param)) != -1);
     __CheckBool(_mixer.Init("longest", muxer.GetCodecCtx(streamIndex)->frame_size));
     muxer.Close();
+
     for (int index = 0; index < deviceTypes.size(); ++index) {
         if (_infos[index].isUsable) {
             auto&& capturer = deviceTypes[index] == AudioCapturer::Microphone ? _micCapturer : _speakerCapturer;

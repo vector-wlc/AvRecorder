@@ -1,53 +1,101 @@
 #include "video_capturer.h"
 #include "basic/frame.h"
+#include "capturer/finder.h"
 
-bool VideoCapturer::Open(HWND hwnd)
+bool VideoCapturer::Open(HWND hwnd, Method method)
 {
     Close();
     __CheckBool(hwnd);
     _srcHwnd = hwnd;
     __CheckBool(_GetHwndSize(_srcHwnd));
-    _isUseDxgi = false;
-    if (GetDesktopWindow() == hwnd) { // DXGI 是用于加速桌面录制的技术
-        _isUseDxgi = _dxgiCapturer.Open();
-        if (!_isUseDxgi) {
-            _dxgiCapturer.Close();
-        }
-    }
-    if (!_isUseDxgi) { // DXGI 无法使用，使用 GDI 截屏
-        __DebugPrint("Use GDI");
-        __CheckBool(_gdiCapturer.Open(hwnd, _width, _height));
-    } else {
-        __DebugPrint("Use DXGI");
-    }
+    _usingMethod = method;
+    _type = WINDOW;
     __CheckBool(_InitFrame(_width, _height));
+    switch (method) {
+    case WGC: {
+        _wgcCapturer = WgcCapturer::New();
+        _wgcCapturer->SetOutputFrame(_frameXrgb);
+        _wgcCapturer->StartCapturerWindow(hwnd);
+        break;
+    }
+
+    default: { // GDI
+        _gdiCapturer = new GdiCapturer;
+        __CheckBool(_gdiCapturer->Open(hwnd, _width, _height));
+        break;
+    }
+    }
+
     return true;
 }
 
-AVFrame* VideoCapturer::GetFrame(bool isDrawCursor)
+bool VideoCapturer::Open(int monitorIdx, Method method)
 {
-    HDC hdc = _isUseDxgi ? _dxgiCapturer.CaptureImage() : _gdiCapturer.CaptureImage(_borderWidth, _borderHeight);
-    if (hdc == nullptr) {
-        return nullptr;
+    Close();
+    auto&& monitorInfo = MonitorFinder::GetList()[monitorIdx];
+    _rect = monitorInfo.rect;
+    _borderHeight = 0;
+    _borderWidth = 0;
+    _width = _rect.right - _rect.left;
+    _height = _rect.bottom - _rect.top;
+    _usingMethod = method;
+    _type = MONITOR;
+    __CheckBool(_InitFrame(_width, _height));
+    switch (method) {
+    case WGC: {
+        auto monitor = monitorInfo.monitor;
+        _wgcCapturer = WgcCapturer::New();
+        _wgcCapturer->SetOutputFrame(_frameXrgb);
+        _wgcCapturer->StartCapturerMonitor(monitor);
+        break;
     }
-    if (isDrawCursor) {
-        _DrawCursor(hdc);
+
+    default: { // DXGI
+        _dxgiCapturer = new DxgiCapturer;
+        __CheckBool(_dxgiCapturer->Open(monitorIdx));
+        break;
     }
-    auto ret = _isUseDxgi ? _dxgiCapturer.WriteImage(_frameXrgb) : _gdiCapturer.WriteImage(_frameRgb);
-    if (ret) {
-        return _isUseDxgi ? _frameXrgb : _frameRgb;
+    }
+    return true;
+}
+
+AVFrame* VideoCapturer::GetFrame()
+{
+    switch (_usingMethod) {
+    case WGC: // 该捕获方式自动就将鼠标画好了，我们不需要再自己画鼠标
+        return _frameXrgb;
+    case DXGI: {
+        auto hdc = _dxgiCapturer->CaptureImage();
+        if (_isDrawCursor && hdc) {
+            _DrawCursor(hdc);
+        }
+        __CheckNullptr(_dxgiCapturer->WriteImage(_frameXrgb));
+        return _frameXrgb;
+    }
+    default: // GDI
+        auto hdc = _gdiCapturer->CaptureImage(_borderWidth, _borderHeight);
+        if (_isDrawCursor && hdc) {
+            _DrawCursor(hdc);
+        }
+        __CheckNullptr(_gdiCapturer->WriteImage(_frameRgb));
+        return _frameRgb;
     }
     return nullptr;
 }
 
-bool VideoCapturer::IsUseDxgi() const
+void VideoCapturer::SetDrawCursor(bool isDrawCursor)
 {
-    return _isUseDxgi;
+    _isDrawCursor = isDrawCursor;
+    if (_usingMethod == WGC) {
+        _wgcCapturer->SetDrawCursor(_isDrawCursor);
+    }
 }
 
 void VideoCapturer::Close()
 {
-    _isUseDxgi ? _dxgiCapturer.Close() : _gdiCapturer.Close();
+    Free(_dxgiCapturer, [this] { _dxgiCapturer->Close(); delete _dxgiCapturer; });
+    Free(_gdiCapturer, [this] { _gdiCapturer->Close(); delete _gdiCapturer; });
+    Free(_wgcCapturer, [this] { _wgcCapturer->Close(); });
     Free(_frameRgb, [this] { av_frame_free(&_frameRgb); });
     Free(_frameXrgb, [this] { av_frame_free(&_frameXrgb); });
 }
@@ -68,9 +116,16 @@ int VideoCapturer::GetHeight() const
 
 bool VideoCapturer::_InitFrame(int width, int height)
 {
-    auto&& frame = _isUseDxgi ? _frameXrgb : _frameRgb;
-    auto format = _isUseDxgi ? AV_PIX_FMT_BGR0 : AV_PIX_FMT_BGR24;
-    __CheckBool(frame = Frame<MediaType::VIDEO>::Alloc(format, width, height));
+    switch (_usingMethod) {
+    case WGC:
+    case DXGI:
+        __CheckBool(_frameXrgb = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height));
+        break;
+    default: // GDI
+        __CheckBool(_frameRgb = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR24, width, height));
+        break;
+    }
+
     return true;
 }
 
@@ -78,6 +133,7 @@ bool VideoCapturer::_GetHwndSize(HWND hwnd)
 {
     RECT rect;
     __CheckBool(GetClientRect(hwnd, &rect));
+    _rect = rect;
     _width = (rect.right - rect.left);
     _height = (rect.bottom - rect.top);
     __CheckBool(GetWindowRect(hwnd, &rect));
@@ -97,16 +153,18 @@ void VideoCapturer::_DrawCursor(HDC hdc)
     CURSORINFO ci;
     ci.cbSize = sizeof(CURSORINFO);
     __CheckNo(GetCursorInfo(&ci));
-    RECT rect;
-    __CheckNo(GetWindowRect(_srcHwnd, &rect));
-    rect.left += _borderWidth / 2;
-    rect.right -= _borderWidth / 2;
-    rect.top += _borderHeight - _borderWidth / 2;
+    int cursorX = ci.ptScreenPos.x;
+    int cursorY = ci.ptScreenPos.y;
+
+    if (cursorX > _rect.right || cursorX < _rect.left
+        || cursorY > _rect.bottom || cursorY < _rect.top) {
+        return; // 超出显示范围
+    }
 
     if (ci.flags == CURSOR_SHOWING) {
         // 将光标画到屏幕所在位置
-        int x = ci.ptScreenPos.x - rect.left;
-        int y = ci.ptScreenPos.y - rect.top;
+        int x = cursorX - _rect.left;
+        int y = cursorY - _rect.top;
         __CheckNo(DrawIconEx(hdc, x, y, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL | DI_COMPAT));
     }
 }

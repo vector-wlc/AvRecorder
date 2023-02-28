@@ -11,19 +11,19 @@
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <stdio.h>
+#include "buffer_filler.h"
 class DxgiCapturer {
 public:
     DxgiCapturer();
     ~DxgiCapturer();
 
 public:
-    bool Open();
+    bool Open(int idx);
     void Close();
 
 public:
     HDC CaptureImage();
     bool WriteImage(AVFrame* frame);
-    bool ResetDevice();
 
 private:
     bool _bInit = false;
@@ -34,12 +34,10 @@ private:
     IDXGIOutputDuplication* _hDeskDupl = nullptr;
     IDXGISurface1* _hStagingSurf = nullptr;
     ID3D11Texture2D* _gdiImage = nullptr;
-    ID3D11Texture2D* _dstImage = nullptr;
     DXGI_OUTPUT_DESC _dxgiOutDesc;
     D3D11_TEXTURE2D_DESC _textureDesc;
     bool _isAttached = false;
-
-    bool _AttatchToThread();
+    BufferFiller _bufferFiller;
 };
 
 #endif

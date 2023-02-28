@@ -47,7 +47,7 @@ bool Encoder<MediaType::VIDEO>::PushFrame(AVFrame* frame, bool isEnd, uint64_t p
 {
     if (!isEnd) {
         __CheckBool(_Trans(frame));
-        frame = _isHardware ? _ToHardware() : _bufferFrame;
+        frame = _bufferFrame;
         __CheckBool(frame);
     } else {
         frame = nullptr; // 直接刷新编码器缓存
@@ -136,6 +136,10 @@ bool Encoder<MediaType::VIDEO>::_Init(const Param& encodeParam, AVFormatContext*
         _codecCtx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }
 
+    if (!_isHardware) { // 软件编码设置为快，避免占用过高的 CPU ，反正硬盘不值钱
+        av_opt_set(_codecCtx->priv_data, "preset", "veryfast", 0);
+    }
+
     __CheckBool(!_isHardware || _SetHwFrameCtx());
     return true;
 }
@@ -163,17 +167,17 @@ bool Encoder<MediaType::VIDEO>::_SetHwFrameCtx()
 
 bool Encoder<MediaType::VIDEO>::_Trans(AVFrame* frame)
 {
+    std::lock_guard<std::mutex> lk(__mtx);
     if (!_isOpen) {
         return false;
     }
-    if (frame != nullptr) {
-        if (!_isHardware) {
-            _bufferFrame = frame->format == AV_PIX_FMT_BGR24 ? _rgbToYuv420.Trans(frame) : _xrgbToYuv420.Trans(frame);
-        } else {
-            _bufferFrame = frame->format == AV_PIX_FMT_BGR24 ? _rgbToNv12.Trans(frame) : _xrgbToNv12.Trans(frame);
-        }
-        __CheckBool(_bufferFrame);
+    if (!_isHardware) {
+        _bufferFrame = frame->format == AV_PIX_FMT_BGR24 ? _rgbToYuv420.Trans(frame) : _xrgbToYuv420.Trans(frame);
+    } else {
+        _bufferFrame = frame->format == AV_PIX_FMT_BGR24 ? _rgbToNv12.Trans(frame) : _xrgbToNv12.Trans(frame);
+        _bufferFrame = _ToHardware();
     }
+    __CheckBool(_bufferFrame);
     return true;
 }
 

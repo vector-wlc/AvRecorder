@@ -51,7 +51,6 @@ Frame<MediaType::VIDEO>::Frame(AVPixelFormat pixFmt, int width, int height)
 AVFrame* Frame<MediaType::VIDEO>::Alloc(AVPixelFormat pixFmt, int width, int height)
 {
     AVFrame* frame = nullptr;
-    int ret;
     __CheckNullptr(frame = av_frame_alloc());
 
     frame->format = pixFmt;
@@ -81,7 +80,7 @@ bool PixTransformer::SetSize(int width, int height)
     __CheckBool(_swsCtx = sws_getContext(
                     width, height, _from,
                     width, height, _to,
-                    SWS_BICUBIC, NULL, NULL, NULL));
+                    0, NULL, NULL, NULL));
 
     __CheckBool(_frameTo = Frame<MediaType::VIDEO>::Alloc(_to, width, height));
     return true;
@@ -90,7 +89,9 @@ bool PixTransformer::SetSize(int width, int height)
 AVFrame* PixTransformer::Trans(AVFrame* frameFrom)
 {
     // 如果是空指针，直接把缓存返回
-    __Check(_frameTo, frameFrom);
+    if (frameFrom == nullptr) {
+        return _frameTo;
+    }
     __CheckNullptr(
         sws_scale(_swsCtx, (const uint8_t* const*)frameFrom->data,
             frameFrom->linesize, 0, frameFrom->height, _frameTo->data,

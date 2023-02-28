@@ -19,6 +19,10 @@ extern "C" {
 }
 
 // ***************
+// MUTEX
+extern std::mutex __mtx;
+
+// ***************
 // debug function
 
 #define __AVDEBUG

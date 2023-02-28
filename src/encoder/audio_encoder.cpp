@@ -31,8 +31,11 @@ bool Encoder<MediaType::AUDIO>::_Init(const Param& audioParam, AVFormatContext* 
     _codecCtx->sample_fmt = AV_SAMPLE_FMT_FLTP;
     _codecCtx->bit_rate = audioParam.bitRate;
     _codecCtx->sample_rate = AUDIO_SAMPLE_RATE;
-    auto x = (AVChannelLayout)AV_CHANNEL_LAYOUT_MONO;
-    av_channel_layout_copy(&_codecCtx->ch_layout, &x);
+    AVChannelLayout layout;
+    layout.order = AV_CHANNEL_ORDER_NATIVE;
+    layout.nb_channels = 1;
+    layout.u.mask = AV_CH_LAYOUT_MONO;
+    av_channel_layout_copy(&_codecCtx->ch_layout,  &layout);
     if (fmtCtx->oformat->flags & AVFMT_GLOBALHEADER) {
         _codecCtx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }

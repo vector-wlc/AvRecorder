@@ -41,7 +41,7 @@ bool AudioCapturer::Start()
 
 void AudioCapturer::Stop()
 {
-    CoUninitialize();
+    // CoUninitialize();
     _isInit = false;
     _loopFlag = false;
     Free(_captureThread, [this] {
@@ -62,7 +62,7 @@ void AudioCapturer::Stop()
 bool AudioCapturer::_CreateDeviceEnumerator(IMMDeviceEnumerator** enumerator)
 {
     // __CheckBool(SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED)));
-    __CheckBool(SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)));
+    // __CheckBool(SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)));
     __CheckBool(SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator),
         reinterpret_cast<void**>(enumerator))));

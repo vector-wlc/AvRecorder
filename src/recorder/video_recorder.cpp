@@ -6,25 +6,42 @@
  */
 #include "video_recorder.h"
 
-bool VideoRecorder::Open(HWND srcHwnd, Encoder<MediaType::VIDEO>::Param& param)
+bool VideoRecorder::Open(HWND srcHwnd, Encoder<MediaType::VIDEO>::Param& param, VideoCapturer::Method type)
 {
     Close();
+    __CheckBool(_capturer.Open(srcHwnd, type));
+    __CheckBool(_Open(param));
+    return true;
+}
+
+bool VideoRecorder::Open(int monitorIdx, Encoder<MediaType::VIDEO>::Param& param, VideoCapturer::Method type)
+{
+    Close();
+    __CheckBool(_capturer.Open(monitorIdx, type));
+    __CheckBool(_Open(param));
+    return true;
+}
+
+bool VideoRecorder::_Open(Encoder<MediaType::VIDEO>::Param& param)
+{
     _isEncodeOverload = false;
-    __CheckBool(_capturer.Open(srcHwnd));
-    auto fmt = _capturer.IsUseDxgi() ? AV_PIX_FMT_BGR0 : AV_PIX_FMT_BGR24;
-    _renderFrame = Frame<MediaType::VIDEO>::Alloc(fmt, _capturer.GetWidth(), _capturer.GetHeight());
+    switch (_capturer.GetMethod()) {
+    case VideoCapturer::WGC:
+    case VideoCapturer::DXGI:
+        _encodeFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, _capturer.GetWidth(), _capturer.GetHeight());
+        break;
+    default: // GDI
+        _encodeFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR24, _capturer.GetWidth(), _capturer.GetHeight());
+        break;
+    }
 
     // 开始捕获画面
     _captureTimer.Start(param.fps, [this] {
-        auto srcFrame = _capturer.GetFrame(_isDrawCursor);
+        auto srcFrame = _capturer.GetFrame();
         if (srcFrame != nullptr) {
-            av_frame_copy(_renderFrame, srcFrame);
+            std::lock_guard<std::mutex> muxLk(__mtx);
+            av_frame_copy(_encodeFrame, srcFrame);
         }
-        if (_isRecord) {
-            std::lock_guard<std::mutex> muxLk(_muxMtx);
-            _queue.emplace(_renderFrame);
-        }
-        _muxCondVar.notify_all();
     });
     param.width = _capturer.GetWidth();
     param.height = _capturer.GetHeight();
@@ -41,26 +58,8 @@ bool VideoRecorder::LoadMuxer(AvMuxer& muxer)
 
 bool VideoRecorder::StartRecord()
 {
-    _muxTimer.Start(0, [this] {
-        std::unique_lock<std::mutex> lk(_muxMtx);
-        if (_queue.empty()) {
-            _muxCondVar.wait(lk);
-        }
-        if (_queue.empty()) { // 说明录制结束了
-            return;
-        }
-        std::queue<Frame<MediaType::VIDEO>> tmpQueue;
-        tmpQueue.swap(_queue);
-        lk.unlock();
-        _isEncodeOverload = tmpQueue.size() > float(_param.fps) / 3;
-        if (tmpQueue.size() > float(_param.fps)) {
-            return; // 直接弃用这些帧
-        }
-        while (!tmpQueue.empty()) {
-            auto frame = std::move(tmpQueue.front());
-            tmpQueue.pop();
-            __CheckNo(_muxer->Write(frame.frame, _streamIndex));
-        }
+    _muxTimer.Start(_param.fps, [this] {
+        __CheckNo(_muxer->Write(_encodeFrame, _streamIndex));
     });
     _isRecord = true;
     return true;
@@ -76,4 +75,5 @@ void VideoRecorder::Close()
     StopRecord();
     _captureTimer.Stop();
     _capturer.Close();
+    Free(_encodeFrame, [this] { av_frame_free(&_encodeFrame); });
 }
