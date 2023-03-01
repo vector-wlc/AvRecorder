@@ -34,7 +34,6 @@ public:
     Method GetMethod() const { return _usingMethod; }
 
 private:
-    bool _InitFrame(int width, int height);
     bool _GetHwndSize(HWND hwnd);
     void _DrawCursor(HDC hdc);
     Method _usingMethod = WGC;
@@ -43,8 +42,6 @@ private:
     DxgiCapturer* _dxgiCapturer = nullptr;
     GdiCapturer* _gdiCapturer = nullptr;
     WgcCapturer* _wgcCapturer = nullptr;
-    AVFrame* _frameRgb = nullptr;
-    AVFrame* _frameXrgb = nullptr;
     int _width = 0;
     int _height = 0;
     int _borderHeight = 0;

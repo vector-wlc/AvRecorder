@@ -15,12 +15,8 @@
 
 class WgcCapturer {
 public:
-    void SetOutputFrame(AVFrame* frame)
-    {
-        _frame = frame;
-    }
-    void StartCapturerWindow(HWND hwnd);
-    void StartCapturerMonitor(HMONITOR monitor);
+    void StartCapturerWindow(HWND hwnd, int width, int height);
+    void StartCapturerMonitor(HMONITOR monitor, int width, int height);
     void SetDrawCursor(bool isDrawCursor) { _app->SetDrawCursor(isDrawCursor); }
     static void Init();
     static WgcCapturer* New();
@@ -32,13 +28,13 @@ public:
             _app->Close();
         }
     }
+    AVFrame* GetFrame() { return _app->GetFrame(); }
 
 private:
     WgcCapturer();
     ~WgcCapturer();
     App* _app = nullptr;
     bool _isAppInit = false;
-    AVFrame* _frame = nullptr;
     static std::list<WgcCapturer*> _capturers;
     static winrt::Windows::System::DispatcherQueue* queuePtr;
     static winrt::Windows::UI::Composition::ContainerVisual* rootPtr;

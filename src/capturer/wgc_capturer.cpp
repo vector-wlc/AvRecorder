@@ -89,12 +89,12 @@ WgcCapturer::~WgcCapturer()
     }
 }
 
-void WgcCapturer::StartCapturerMonitor(HMONITOR monitor)
+void WgcCapturer::StartCapturerMonitor(HMONITOR monitor, int width, int height)
 {
-    _app->StartCaptureMonitor(monitor, _frame);
+    _app->StartCaptureMonitor(monitor, width, height);
 }
 
-void WgcCapturer::StartCapturerWindow(HWND hwnd)
+void WgcCapturer::StartCapturerWindow(HWND hwnd, int width, int height)
 {
-    _app->StartCaptureWindow(hwnd, _frame);
+    _app->StartCaptureWindow(hwnd, width, height);
 }

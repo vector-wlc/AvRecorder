@@ -24,15 +24,16 @@ public:
 public:
     bool Open(HWND hwnd, unsigned int width, unsigned int height);
     void Close();
-    bool Render();
-    bool Trans(AVFrame* frame); // 将图片的格式转为 D3D 能渲染的格式
+    bool Render(AVFrame* frame);
 
 private:
+    bool _Trans(AVFrame* frame); // 将图片的格式转为 D3D 能渲染的格式
     IDXGISwapChain* _swapChain = nullptr;
     ID3D11Device* _device = nullptr;
     ID3D11DeviceContext* _context = nullptr;
     PixTransformer _xrgbToArgb;
     PixTransformer _rgbToArgb;
+    PixTransformer _nv12ToArgb;
     AVFrame* _bufferFrame = nullptr;
 };
 

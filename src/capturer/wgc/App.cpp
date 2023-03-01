@@ -12,7 +12,6 @@
 
 #include "pch.h"
 #include "App.h"
-#include "SimpleCapture.h"
 #include "basic/frame.h"
 
 using namespace winrt;
@@ -62,11 +61,11 @@ void App::Close()
     }
 }
 
-void App::StartCaptureWindow(HWND hwnd, AVFrame* frame)
+void App::StartCaptureWindow(HWND hwnd, int width, int height)
 {
     Close();
     auto item = CreateCaptureItemForWindow(hwnd);
-    m_capture = new SimpleCapture(m_device, item, frame);
+    m_capture = new SimpleCapture(m_device, item, width, height);
     auto surface = m_capture->CreateSurface(m_compositor);
     m_brush.Surface(surface);
     m_capture->StartCapture();
@@ -80,11 +79,11 @@ void App::SetDrawCursor(bool isDrawCursor)
     m_capture->SetDrawCursor(isDrawCursor);
 }
 
-void App::StartCaptureMonitor(HMONITOR monitor, AVFrame* frame)
+void App::StartCaptureMonitor(HMONITOR monitor, int width, int height)
 {
     Close();
     auto item = CreateCaptureItemForMonitor(monitor);
-    m_capture = new SimpleCapture(m_device, item, frame);
+    m_capture = new SimpleCapture(m_device, item, width, height);
     auto surface = m_capture->CreateSurface(m_compositor);
     m_brush.Surface(surface);
     m_capture->StartCapture();

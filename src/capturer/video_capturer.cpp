@@ -10,12 +10,10 @@ bool VideoCapturer::Open(HWND hwnd, Method method)
     __CheckBool(_GetHwndSize(_srcHwnd));
     _usingMethod = method;
     _type = WINDOW;
-    __CheckBool(_InitFrame(_width, _height));
     switch (method) {
     case WGC: {
         _wgcCapturer = WgcCapturer::New();
-        _wgcCapturer->SetOutputFrame(_frameXrgb);
-        _wgcCapturer->StartCapturerWindow(hwnd);
+        _wgcCapturer->StartCapturerWindow(hwnd, _width, _height);
         break;
     }
 
@@ -40,19 +38,17 @@ bool VideoCapturer::Open(int monitorIdx, Method method)
     _height = _rect.bottom - _rect.top;
     _usingMethod = method;
     _type = MONITOR;
-    __CheckBool(_InitFrame(_width, _height));
     switch (method) {
     case WGC: {
         auto monitor = monitorInfo.monitor;
         _wgcCapturer = WgcCapturer::New();
-        _wgcCapturer->SetOutputFrame(_frameXrgb);
-        _wgcCapturer->StartCapturerMonitor(monitor);
+        _wgcCapturer->StartCapturerMonitor(monitor, _width, _height);
         break;
     }
 
     default: { // DXGI
         _dxgiCapturer = new DxgiCapturer;
-        __CheckBool(_dxgiCapturer->Open(monitorIdx));
+        __CheckBool(_dxgiCapturer->Open(monitorIdx, _width, _height));
         break;
     }
     }
@@ -63,24 +59,21 @@ AVFrame* VideoCapturer::GetFrame()
 {
     switch (_usingMethod) {
     case WGC: // 该捕获方式自动就将鼠标画好了，我们不需要再自己画鼠标
-        return _frameXrgb;
+        return _wgcCapturer->GetFrame();
     case DXGI: {
-        auto hdc = _dxgiCapturer->CaptureImage();
+        auto hdc = _dxgiCapturer->GetHdc();
         if (_isDrawCursor && hdc) {
             _DrawCursor(hdc);
         }
-        __CheckNullptr(_dxgiCapturer->WriteImage(_frameXrgb));
-        return _frameXrgb;
+        return _dxgiCapturer->GetFrame();
     }
     default: // GDI
-        auto hdc = _gdiCapturer->CaptureImage(_borderWidth, _borderHeight);
+        auto hdc = _gdiCapturer->GetHdc(_borderWidth, _borderHeight);
         if (_isDrawCursor && hdc) {
             _DrawCursor(hdc);
         }
-        __CheckNullptr(_gdiCapturer->WriteImage(_frameRgb));
-        return _frameRgb;
+        return _gdiCapturer->GetFrame();
     }
-    return nullptr;
 }
 
 void VideoCapturer::SetDrawCursor(bool isDrawCursor)
@@ -96,8 +89,6 @@ void VideoCapturer::Close()
     Free(_dxgiCapturer, [this] { _dxgiCapturer->Close(); delete _dxgiCapturer; });
     Free(_gdiCapturer, [this] { _gdiCapturer->Close(); delete _gdiCapturer; });
     Free(_wgcCapturer, [this] { _wgcCapturer->Close(); });
-    Free(_frameRgb, [this] { av_frame_free(&_frameRgb); });
-    Free(_frameXrgb, [this] { av_frame_free(&_frameXrgb); });
 }
 
 VideoCapturer::~VideoCapturer()
@@ -112,21 +103,6 @@ int VideoCapturer::GetWidth() const
 int VideoCapturer::GetHeight() const
 {
     return _height;
-}
-
-bool VideoCapturer::_InitFrame(int width, int height)
-{
-    switch (_usingMethod) {
-    case WGC:
-    case DXGI:
-        __CheckBool(_frameXrgb = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height));
-        break;
-    default: // GDI
-        __CheckBool(_frameRgb = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR24, width, height));
-        break;
-    }
-
-    return true;
 }
 
 bool VideoCapturer::_GetHwndSize(HWND hwnd)

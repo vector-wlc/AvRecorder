@@ -11,6 +11,7 @@ Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
 
 ## 目前完成的功能
 
+* 使用 D3D11 加速像素色彩空间转换
 * 使用 DXGI 录制桌面
 * 使用 BitBlt 录制窗口
 * 使用 WGC 捕获桌面和窗口
@@ -44,4 +45,10 @@ Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
 ## 关于性能
 * CPU 软件编码设置为 veryfast, 以降低 CPU 的占用
 * 截取画面从 GPU 到 CPU 需要调用 Map 函数, 这个函数实际上很坑的, 因为他必须等待 GPU 把这帧画面绘制完成才能工作, 这样 CPU 就得搁那干等, 究极浪费性能, 解决方案就是多缓存几个 Texture, 这样做就是增加了延迟, 但是这无所谓, 录屏谁在乎那几帧的延迟呢,肉眼是看不出来的
-* 尚未解决：像素格式转换 CPU 占用高, 据说 D3D11 能在硬件层面完成像素转换
+* 像素色彩空间转换 CPU 占用高, D3D11 能在硬件层面完成像素转换
+
+## 代码参考
+
+* https://github.com/NVIDIA/video-sdk-samples/blob/master/nvEncDXGIOutputDuplicationSample/Preproc.cpp
+
+* https://github.com/microsoft/Windows.UI.Composition-Win32-Samples/tree/master/cpp/ScreenCaptureforHWND

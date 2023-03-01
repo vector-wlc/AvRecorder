@@ -28,10 +28,8 @@ extern std::mutex __mtx;
 #define __AVDEBUG
 
 #ifdef __AVDEBUG
-// #define __DebugPrint(fmtStr, ...)
 #define __DebugPrint(fmtStr, ...) \
     std::printf("[" __FILE__ ", line:%d] " fmtStr "\n", __LINE__, ##__VA_ARGS__)
-
 #define __Str(exp) #exp
 #define __Check(retVal, ...)                            \
     do {                                                \
@@ -40,18 +38,14 @@ extern std::mutex __mtx;
             return retVal;                              \
         }                                               \
     } while (false)
+#else
+#define __DebugPrint(fmtStr, ...)
+#define __Check(retVal, ...) __VA_ARGS__;
+#endif
 
 #define __CheckNo(...) __Check(, __VA_ARGS__)
 #define __CheckBool(...) __Check(false, __VA_ARGS__)
 #define __CheckNullptr(...) __Check(nullptr, __VA_ARGS__)
-
-#else
-#define __DebugPrint(fmtStr, ...)
-#define __Check(retVal, ...)
-#define __CheckNo(...)
-#define __CheckBool(...)
-#define __CheckNullptr(...)
-#endif
 
 enum class MediaType {
     AUDIO,

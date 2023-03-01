@@ -6,16 +6,15 @@
  */
 #pragma once
 
-#include "basic/frame.h"
-#include "capturer/buffer_filler.h"
 #include <chrono>
+#include "capturer/d3d/gen_frame.h"
 
 class SimpleCapture {
 public:
     SimpleCapture(
         winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device,
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem const& item,
-        AVFrame* outFrame);
+        int width, int height);
     ~SimpleCapture() { Close(); }
 
     void StartCapture();
@@ -25,6 +24,8 @@ public:
     void SetDrawCursor(bool isDrawCursor) { m_session.IsCursorCaptureEnabled(isDrawCursor); }
 
     void Close();
+
+    AVFrame* GetFrame() const noexcept { return m_pixType == NV12 ? m_nv12Frame : m_xrgbFrame; }
 
 private:
     void OnFrameArrived(
@@ -39,6 +40,11 @@ private:
     }
 
 private:
+    enum _PixType {
+        NV12,
+        RGB
+    };
+
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_item {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool {nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session {nullptr};
@@ -50,6 +56,10 @@ private:
 
     std::atomic<bool> m_closed = false;
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::FrameArrived_revoker m_frameArrived;
-    AVFrame* m_outFrame = nullptr;
-    BufferFiller m_bufferFiller;
+    AVFrame* m_xrgbFrame = nullptr;
+    AVFrame* m_nv12Frame = nullptr;
+    BufferFiller m_xrgbBuffers;
+    BufferFiller m_nv12Buffers;
+    RGBToNV12 m_rgbToNv12;
+    _PixType m_pixType;
 };

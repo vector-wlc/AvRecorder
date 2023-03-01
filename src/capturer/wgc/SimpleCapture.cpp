@@ -21,19 +21,20 @@ using namespace Windows::Foundation::Numerics;
 using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 
+#undef min
+#undef max
+
 SimpleCapture::SimpleCapture(
     IDirect3DDevice const& device,
     GraphicsCaptureItem const& item,
-    AVFrame* outFrame)
+    int width, int height)
 {
     m_item = item;
     m_device = device;
-    m_outFrame = outFrame;
 
     // Set up
     auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
     d3dDevice->GetImmediateContext(m_d3dContext.put());
-
     auto size = m_item.Size();
 
     m_swapChain = CreateDXGISwapChain(
@@ -49,10 +50,15 @@ SimpleCapture::SimpleCapture(
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
         2,
         size);
+
     m_session = m_framePool.CreateCaptureSession(m_item);
     m_lastSize = size;
-
     m_frameArrived = m_framePool.FrameArrived(auto_revoke, {this, &SimpleCapture::OnFrameArrived});
+    __CheckNo(SUCCEEDED(m_rgbToNv12.Init(d3dDevice.get(), m_d3dContext.get())));
+    m_nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
+    m_xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
+    __CheckNo(m_nv12Frame);
+    __CheckNo(m_xrgbFrame);
 }
 
 // Start sending capture frames
@@ -82,7 +88,11 @@ void SimpleCapture::Close()
         m_session = nullptr;
         m_item = nullptr;
     }
-    m_bufferFiller.Clear();
+    m_nv12Buffers.Clear();
+    m_xrgbBuffers.Clear();
+    m_rgbToNv12.Cleanup();
+    Free(m_nv12Frame, [this] { av_frame_free(&m_nv12Frame); });
+    Free(m_xrgbFrame, [this] { av_frame_free(&m_xrgbFrame); });
 }
 
 void SimpleCapture::OnFrameArrived(
@@ -104,42 +114,31 @@ void SimpleCapture::OnFrameArrived(
             static_cast<uint32_t>(m_lastSize.Height),
             static_cast<DXGI_FORMAT>(DirectXPixelFormat::B8G8R8A8UIntNormalized),
             0);
-        m_bufferFiller.Clear();
+        m_nv12Buffers.Clear();
+        m_xrgbBuffers.Clear();
     }
 
-#undef min
-#undef max
-    if (m_outFrame != nullptr) {
-        auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-        D3D11_TEXTURE2D_DESC desc;
-        frameSurface->GetDesc(&desc);
-        auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
-        __CheckNo(m_bufferFiller.Fill(d3dDevice.get(), desc));
-        m_d3dContext->CopyResource(m_bufferFiller.GetCopy(), frameSurface.get());
-        D3D11_MAPPED_SUBRESOURCE resource;
-        __CheckNo(SUCCEEDED(m_d3dContext->Map(m_bufferFiller.GetMap(), 0, D3D11_MAP_READ, 0, &resource)));
-        auto height = std::min(m_outFrame->height, (int)resource.DepthPitch);
-        auto width = m_outFrame->width;
-        auto srcLinesize = resource.RowPitch;
-        auto dstLinesize = m_outFrame->linesize[0];
-        auto srcData = (uint8_t*)resource.pData;
-        auto dstData = m_outFrame->data[0];
-        auto titleHeight = std::max(int(desc.Height - height), 0);
-        auto copyLine = std::min(std::min(width * 4, (int)srcLinesize), dstLinesize);
-        auto border = (desc.Width - width) / 2;
-        __mtx.lock();
-        for (int row = 0; row < height; ++row) {
-            auto offset = (titleHeight + row - border) * srcLinesize + border * 4;
-            memcpy(dstData + row * dstLinesize, srcData + offset, copyLine);
-        }
-        __mtx.unlock();
+    auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+    D3D11_TEXTURE2D_DESC desc;
+    frameSurface->GetDesc(&desc);
+    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
 
-        m_d3dContext->Unmap(m_bufferFiller.GetMap(), 0);
-        // com_ptr<ID3D11Texture2D> backBuffer;
-        // check_hresult(m_swapChain->GetBuffer(0, guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
-        // m_d3dContext->CopyResource(backBuffer.get(), m_bufferFiller.GetMap());
-        __CheckNo(m_bufferFiller.Reset());
+    // 首先尝试创建 NV12 纹理
+    auto tmpFormat = desc.Format;
+    desc.Format = DXGI_FORMAT_NV12;
+    if (GenNv12Frame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
+            m_nv12Buffers, m_nv12Frame, m_rgbToNv12)) {
+        m_pixType = _PixType::NV12;
+    } else {
+        desc.Format = tmpFormat;
+        GenRgbFrame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
+            m_xrgbBuffers, m_xrgbFrame);
+        m_pixType = _PixType::RGB;
     }
+
+    // com_ptr<ID3D11Texture2D> backBuffer;
+    // check_hresult(m_swapChain->GetBuffer(0, guid_of<ID3D11Texture2D>(), backBuffer.put_void()));
+    // m_d3dContext->CopyResource(backBuffer.get(), m_bufferFiller.GetMap());
 
     // DXGI_PRESENT_PARAMETERS presentParameters = {0};
     // auto hr = m_swapChain->Present1(1, 0, &presentParameters);

@@ -7,8 +7,7 @@
 #pragma once
 
 #include "basic/frame.h"
-
-class SimpleCapture;
+#include "SimpleCapture.h"
 
 class App {
 public:
@@ -18,10 +17,11 @@ public:
     void Initialize(
         winrt::Windows::UI::Composition::ContainerVisual const& root);
 
-    void StartCaptureWindow(HWND hwnd, AVFrame* frame);
-    void StartCaptureMonitor(HMONITOR monitor, AVFrame* frame);
+    void StartCaptureWindow(HWND hwnd, int width, int height);
+    void StartCaptureMonitor(HMONITOR monitor, int width, int height);
     void SetDrawCursor(bool isDrawCursor);
     void Close();
+    AVFrame* GetFrame() { return m_capture->GetFrame(); }
 
 private:
     winrt::Windows::UI::Composition::Compositor m_compositor {nullptr};

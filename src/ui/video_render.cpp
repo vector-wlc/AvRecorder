@@ -23,6 +23,7 @@ using MWComPtr = Microsoft::WRL::ComPtr<T>;
 VideoRender::VideoRender()
     : _xrgbToArgb(AV_PIX_FMT_BGR0, AV_PIX_FMT_RGBA)
     , _rgbToArgb(AV_PIX_FMT_BGR24, AV_PIX_FMT_RGBA)
+    , _nv12ToArgb(AV_PIX_FMT_NV12, AV_PIX_FMT_RGBA)
 {
 }
 VideoRender::~VideoRender()
@@ -69,6 +70,7 @@ bool VideoRender::Open(HWND hwnd, unsigned int width, unsigned int height)
 
     __CheckBool(_xrgbToArgb.SetSize(width, height));
     __CheckBool(_rgbToArgb.SetSize(width, height));
+    __CheckBool(_nv12ToArgb.SetSize(width, height));
     return true;
 }
 
@@ -79,15 +81,28 @@ void VideoRender::Close()
     Free(_context, [this] { _context->Release(); });
 }
 
-bool VideoRender::Trans(AVFrame* frame)
+bool VideoRender::_Trans(AVFrame* frame)
 {
-    __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
-    __CheckBool(_bufferFrame = frame->format == AV_PIX_FMT_BGR0 ? _xrgbToArgb.Trans(frame) : _rgbToArgb.Trans(frame));
+    switch (frame->format) { // CPU 代价高
+    case AV_PIX_FMT_BGR0:
+        __CheckBool(_bufferFrame = _xrgbToArgb.Trans(frame));
+        break;
+    case AV_PIX_FMT_BGR24:
+        __CheckBool(_bufferFrame = _rgbToArgb.Trans(frame));
+        break;
+    default: // NV12
+        __CheckBool(_bufferFrame = _nv12ToArgb.Trans(frame));
+        break;
+    }
     return true;
 }
 
-bool VideoRender::Render()
+bool VideoRender::Render(AVFrame* frame)
 {
+    if (frame == nullptr) {
+        return true;
+    }
+    __CheckBool(_Trans(frame));
     __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
     __CheckBool(_bufferFrame);
     MWComPtr<ID3D11Texture2D> pBackBuffer;

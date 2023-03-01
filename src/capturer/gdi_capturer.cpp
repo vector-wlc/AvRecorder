@@ -27,10 +27,11 @@ bool GdiCapturer::Open(HWND hwnd, int width, int height)
     _bitmapInfo.bmiHeader.biSizeImage = width * height;
 
     // 创建缓存帧
+    _frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR24, width, height);
     return true;
 }
 
-HDC GdiCapturer::CaptureImage(int borderWidth, int borderHeight)
+HDC GdiCapturer::GetHdc(int borderWidth, int borderHeight)
 {
     __CheckNullptr(
         BitBlt(_dstHdc, 0, 0, _width, _height,
@@ -39,17 +40,18 @@ HDC GdiCapturer::CaptureImage(int borderWidth, int borderHeight)
     return _dstHdc;
 }
 
-bool GdiCapturer::WriteImage(AVFrame* frame)
+AVFrame* GdiCapturer::GetFrame()
 {
-    auto linesize = frame->linesize[0];
+    auto linesize = _frame->linesize[0];
     for (int row = 0; row < _height; ++row) {
-        __CheckBool(GetDIBits(_dstHdc, _bitmap, _height - 1 - row, 1, frame->data[0] + row * linesize, &_bitmapInfo, DIB_RGB_COLORS));
+        __CheckNullptr(GetDIBits(_dstHdc, _bitmap, _height - 1 - row, 1, _frame->data[0] + row * linesize, &_bitmapInfo, DIB_RGB_COLORS));
     }
-    return true;
+    return _frame;
 }
 
 void GdiCapturer::Close()
 {
+    Free(_frame, [this] { av_frame_free(&_frame); });
     Free(_dstHdc, [this] { DeleteObject(_dstHdc); });
     Free(_bitmap, [this] { DeleteObject(_bitmap); });
 }

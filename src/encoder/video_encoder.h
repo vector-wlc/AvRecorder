@@ -38,6 +38,7 @@ private:
     bool _isHardware = false;
     PixTransformer _rgbToYuv420;
     PixTransformer _xrgbToYuv420;
+    PixTransformer _nv12ToYuv420;
     PixTransformer _rgbToNv12;
     PixTransformer _xrgbToNv12;
     AVFrame* _bufferFrame = nullptr;

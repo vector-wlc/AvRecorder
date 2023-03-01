@@ -97,7 +97,6 @@ AVFrame* PixTransformer::Trans(AVFrame* frameFrom)
             frameFrom->linesize, 0, frameFrom->height, _frameTo->data,
             _frameTo->linesize)
         >= 0);
-    _frameTo->pts = frameFrom->pts;
     return _frameTo;
 }
 

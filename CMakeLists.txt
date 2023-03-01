@@ -13,10 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(e:/ffmpeg/include)
 link_directories(e:/ffmpeg/lib)
 
-# libyuv
-include_directories(e:/libyuv/include)
-link_directories(e:/libyuv/bin)
-
 include_directories(./src)
 
 
@@ -28,6 +24,7 @@ aux_source_directory(./src/muxer muxerSrcs)
 aux_source_directory(./src/recorder recorderSrcs)
 aux_source_directory(./src/ui uiSrcs)
 aux_source_directory(./src/capturer/wgc wgcSrcs)
+aux_source_directory(./src/capturer/d3d d3dSrcs)
 
 # Specify MSVC UTF-8 encoding   
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
@@ -42,6 +39,7 @@ add_executable(${PROJECT_NAME}
     ${recorderSrcs} 
     ${uiSrcs} 
     ${wgcSrcs} 
+    ${d3dSrcs} 
     src/main.cpp
     rc/icon.rc
 ) 
@@ -52,14 +50,14 @@ target_link_libraries(
     PRIVATE Qt5::Widgets 
 
     # ffmpeg
-    avcodec.dll
-    avdevice.dll 
-    avfilter.dll 
-    avformat.dll
-    avutil.dll
-    swresample.dll
-    postproc.dll
-    swscale.dll
+    avcodec
+    avdevice 
+    avfilter 
+    avformat
+    avutil
+    swresample
+    postproc
+    swscale
 
     # windows
     ksuser
@@ -69,7 +67,4 @@ target_link_libraries(
     windowsapp
     dwmapi
     dxgi
-
-    # libyuv 
-    yuv
 )

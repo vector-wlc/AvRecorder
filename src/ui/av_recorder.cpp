@@ -119,17 +119,21 @@ void AvRecorder::_StartCapture(VideoCapturer::Method method)
         idx = 0;
         _captureListWidget->setCurrentRow(idx);
     }
+
     int monitorCnt = MonitorFinder::GetList().size();
     if (idx < monitorCnt) { // 捕获屏幕
         if (_captureMethodBox->count() < 2) {
             _captureMethodBox->addItem("DXGI");
         }
+
         _videoRecorder.Open(idx, _settingsParam.videoParam, method);
+
     } else {
         if (_captureMethodBox->count() < 2) {
             _captureMethodBox->addItem("GDI");
         }
         auto hwnd = WindowFinder::GetList()[idx - monitorCnt].hwnd;
+
         _videoRecorder.Open(hwnd, _settingsParam.videoParam, method);
     }
     _DealCapture();
@@ -165,8 +169,7 @@ void AvRecorder::_StartPreview()
         }
         // 视频
         auto frame = _videoRecorder.GetRenderFrame();
-        __CheckNo(_videoRender.Trans(frame));
-        __CheckNo(_videoRender.Render());
+        __CheckNo(_videoRender.Render(frame));
     });
 
     // 其他的渲染就没啥要求了
@@ -190,7 +193,7 @@ void AvRecorder::_StartPreview()
             _captureTimeLabel->setText(
                 QString("%1:%2:%3").arg(hour, 2, 10, QChar('0')).arg(minute, 2, 10, QChar('0')).arg(sec, 2, 10, QChar('0')));
             std::string text;
-            if (_avMuxer.IsEncodeOverload() || _videoRecorder.IsEncodeOverload()) {
+            if (_avMuxer.IsEncodeOverload()) {
                 text += "编码过载, ";
             }
             if (_videoRecorder.IsCaptureOverload()) {
@@ -220,8 +223,7 @@ void AvRecorder::_StartRecord()
     if (fileName.back() != '\\') {
         fileName.push_back('\\');
     }
-    // fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
-    fileName += "test.mp4";
+    fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
     __CheckNo(_avMuxer.Open(fileName));
     __CheckNo(_audioRecorder.LoadMuxer(_avMuxer));
     __CheckNo(_videoRecorder.LoadMuxer(_avMuxer));

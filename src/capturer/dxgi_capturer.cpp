@@ -4,7 +4,7 @@
 DxgiCapturer::DxgiCapturer()
 {
     ZeroMemory(&_dxgiOutDesc, sizeof(_dxgiOutDesc));
-    ZeroMemory(&_textureDesc, sizeof(_textureDesc));
+    ZeroMemory(&_desc, sizeof(_desc));
 }
 
 DxgiCapturer::~DxgiCapturer()
@@ -12,7 +12,7 @@ DxgiCapturer::~DxgiCapturer()
     Close();
 }
 
-bool DxgiCapturer::Open(int idx)
+bool DxgiCapturer::Open(int idx, int width, int height)
 {
     Close();
     HRESULT hr = S_OK;
@@ -80,7 +80,11 @@ bool DxgiCapturer::Open(int idx)
     hr = hDxgiOutput1->DuplicateOutput(_hDevice, &_hDeskDupl);
     Free(hDxgiOutput1, [=] { hDxgiOutput1->Release(); });
     __CheckBool(SUCCEEDED(hr));
-
+    __CheckBool(SUCCEEDED(_rgbToNv12.Init(_hDevice, _hContext)));
+    _nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
+    _xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
+    __CheckBool(_nv12Frame);
+    __CheckBool(_xrgbFrame);
     // 初始化成功
     _bInit = true;
     return true;
@@ -92,13 +96,17 @@ void DxgiCapturer::Close()
     }
 
     _bInit = false;
-    _bufferFiller.Clear();
+    _nv12Buffers.Clear();
+    _xrgbBuffers.Clear();
+    _rgbToNv12.Cleanup();
+    Free(_nv12Frame, [this] { av_frame_free(&_nv12Frame); });
+    Free(_xrgbFrame, [this] { av_frame_free(&_xrgbFrame); });
     Free(_hDeskDupl, [this] { _hDeskDupl->Release(); });
     Free(_hDevice, [this] { _hDevice->Release(); });
     Free(_hContext, [this] { _hContext->Release(); });
 }
 
-HDC DxgiCapturer::CaptureImage()
+HDC DxgiCapturer::GetHdc()
 {
     _isCaptureSuccess = false;
     if (!_bInit) {
@@ -121,26 +129,21 @@ HDC DxgiCapturer::CaptureImage()
     Free(hDesktopResource, [=] { hDesktopResource->Release(); });
     __CheckNullptr(SUCCEEDED(hr));
 
-    srcImage->GetDesc(&_textureDesc);
+    srcImage->GetDesc(&_desc);
 
     // create a new staging buffer for fill frame image
-    _textureDesc.ArraySize = 1;
-    _textureDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
-    _textureDesc.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE;
-    _textureDesc.SampleDesc.Count = 1;
-    _textureDesc.SampleDesc.Quality = 0;
-    _textureDesc.MipLevels = 1;
-    _textureDesc.CPUAccessFlags = 0;
-    _textureDesc.Usage = D3D11_USAGE_DEFAULT;
-    hr = _hDevice->CreateTexture2D(&_textureDesc, nullptr, &_gdiImage);
+    auto desc = _desc;
+    desc.ArraySize = 1;
+    desc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.MipLevels = 1;
+    desc.CPUAccessFlags = 0;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    hr = _hDevice->CreateTexture2D(&desc, nullptr, &_gdiImage);
     if (FAILED(hr)) {
         __DebugPrint("Create _gdiImage failed");
-        Free(srcImage, [=] { srcImage->Release(); });
-        Free(_hDeskDupl, [this] { _hDeskDupl->ReleaseFrame(); });
-        return nullptr;
-    }
-    if (!_bufferFiller.Fill(_hDevice, _textureDesc)) {
-        __DebugPrint("Create _dstImage failed");
         Free(srcImage, [=] { srcImage->Release(); });
         Free(_hDeskDupl, [this] { _hDeskDupl->ReleaseFrame(); });
         return nullptr;
@@ -167,32 +170,36 @@ HDC DxgiCapturer::CaptureImage()
     return hdc;
 }
 
-bool DxgiCapturer::WriteImage(AVFrame* frame)
+AVFrame* DxgiCapturer::GetFrame()
 {
-    __CheckBool(frame);
     if (!_isCaptureSuccess) {
-        return true;
+        return nullptr;
     }
     _isCaptureSuccess = false;
     _hStagingSurf->ReleaseDC(nullptr);
-    _hContext->CopyResource(_bufferFiller.GetCopy(), _gdiImage);
 
-    // Copy from CPU access texture to bitmap buffer
-    D3D11_MAPPED_SUBRESOURCE resource;
-    UINT subresource = D3D11CalcSubresource(0, 0, 0);
-    __CheckBool(SUCCEEDED(_hContext->Map(_bufferFiller.GetMap(), subresource, D3D11_MAP_READ, 0, &resource)));
-    int height = frame->height;
-    int width = frame->width;
-    int srcLinesize = resource.RowPitch;
-    int dstLinesize = frame->linesize[0];
-    auto srcData = (uint8_t*)resource.pData;
-    auto dstData = frame->data[0];
-    for (int row = 0; row < height; ++row) {
-        memcpy(dstData + row * dstLinesize, srcData + row * srcLinesize, width * 4);
+    // 创建一个临时的纹理
+    ID3D11Texture2D* tmpImage = nullptr;
+    _desc.MiscFlags = 2050;
+    __CheckNullptr(SUCCEEDED(_hDevice->CreateTexture2D(&_desc, nullptr, &tmpImage)));
+    _hContext->CopyResource(tmpImage, _gdiImage);
+
+    // 首先尝试创建 NV12 纹理
+    AVFrame* frame = nullptr;
+    auto tmpFormat = _desc.Format;
+    _desc.Format = DXGI_FORMAT_NV12;
+    if (GenNv12Frame(_hDevice, _hContext, _desc, tmpImage,
+            _nv12Buffers, _nv12Frame, _rgbToNv12)) {
+        frame = _nv12Frame;
+    } else {
+        _desc.Format = tmpFormat;
+        GenRgbFrame(_hDevice, _hContext, _desc, _gdiImage,
+            _xrgbBuffers, _xrgbFrame);
+        frame = _xrgbFrame;
     }
-    _hContext->Unmap(_bufferFiller.GetMap(), 0);
-    _bufferFiller.Reset();
     Free(_hStagingSurf, [this] { _hStagingSurf->Release(); });
+    Free(tmpImage, [&tmpImage] { tmpImage->Release(); });
     Free(_gdiImage, [this] { _gdiImage->Release(); });
-    return true;
+
+    return frame;
 }

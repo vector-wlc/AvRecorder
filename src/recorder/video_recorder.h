@@ -21,14 +21,13 @@ public:
     bool StartRecord();
     void StopRecord();
     auto GetCapturerType() { return _capturer.GetMethod(); }
-    AVFrame* GetRenderFrame() const { return _encodeFrame; };
+    AVFrame* GetRenderFrame() const { return _cnt > 5 ? _encodeFrame : nullptr; }
     // 停止录制
     void Close();
     void SetIsDrawCursor(bool isDraw)
     {
         _capturer.SetDrawCursor(isDraw);
     }
-    bool IsEncodeOverload() const { return _isEncodeOverload; }
     bool IsCaptureOverload() const { return _captureTimer.IsOverload(); }
 
 private:
@@ -41,6 +40,6 @@ private:
     Encoder<MediaType::VIDEO>::Param _param;
     Timer _captureTimer;
     Timer _muxTimer;
-    bool _isEncodeOverload = false;
+    int _cnt = 0;
 };
 #endif

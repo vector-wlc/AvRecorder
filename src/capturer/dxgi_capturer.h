@@ -7,23 +7,22 @@
 #ifndef __DXGI_CAPTURER_H__
 #define __DXGI_CAPTURER_H__
 
-#include "basic/basic.h"
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <stdio.h>
-#include "buffer_filler.h"
+#include "d3d/gen_frame.h"
 class DxgiCapturer {
 public:
     DxgiCapturer();
     ~DxgiCapturer();
 
 public:
-    bool Open(int idx);
+    bool Open(int idx, int width, int height);
     void Close();
 
 public:
-    HDC CaptureImage();
-    bool WriteImage(AVFrame* frame);
+    HDC GetHdc();
+    AVFrame* GetFrame();
 
 private:
     bool _bInit = false;
@@ -35,9 +34,13 @@ private:
     IDXGISurface1* _hStagingSurf = nullptr;
     ID3D11Texture2D* _gdiImage = nullptr;
     DXGI_OUTPUT_DESC _dxgiOutDesc;
-    D3D11_TEXTURE2D_DESC _textureDesc;
+    D3D11_TEXTURE2D_DESC _desc;
     bool _isAttached = false;
-    BufferFiller _bufferFiller;
+    AVFrame* _xrgbFrame = nullptr;
+    AVFrame* _nv12Frame = nullptr;
+    BufferFiller _xrgbBuffers;
+    BufferFiller _nv12Buffers;
+    RGBToNV12 _rgbToNv12;
 };
 
 #endif
