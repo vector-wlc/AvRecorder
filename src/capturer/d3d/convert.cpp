@@ -19,7 +19,7 @@ using namespace std;
 #endif
 
 /// Initialize Video Context
-HRESULT RGBToNV12::Init(ID3D11Device* pDev, ID3D11DeviceContext* pCtx)
+HRESULT RGBToNV12::Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx)
 {
     m_pDev = pDev;
     m_pCtx = pCtx;
@@ -39,7 +39,7 @@ HRESULT RGBToNV12::Init(ID3D11Device* pDev, ID3D11DeviceContext* pCtx)
 }
 
 /// Release all Resources
-void RGBToNV12::Cleanup()
+void RGBToNV12::Close()
 {
     for (auto& it : viewMap) {
         ID3D11VideoProcessorOutputView* pVPOV = it.second;
@@ -51,6 +51,25 @@ void RGBToNV12::Cleanup()
     SAFE_RELEASE(m_pVid);
     SAFE_RELEASE(m_pCtx);
     SAFE_RELEASE(m_pDev);
+}
+
+void RGBToNV12::_SetColorSpace()
+{
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColorSpace;
+    inputColorSpace.Usage = 1;
+    inputColorSpace.RGB_Range = 0;
+    inputColorSpace.YCbCr_Matrix = 1;
+    inputColorSpace.YCbCr_xvYCC = 0;
+    inputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
+    m_pVidCtx->VideoProcessorSetStreamColorSpace(m_pVP, 0, &inputColorSpace);
+
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColorSpace;
+    outputColorSpace.Usage = 0;
+    outputColorSpace.RGB_Range = 0;
+    outputColorSpace.YCbCr_Matrix = 1;
+    outputColorSpace.YCbCr_xvYCC = 0;
+    outputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
+    m_pVidCtx->VideoProcessorSetOutputColorSpace(m_pVP, &outputColorSpace);
 }
 
 /// Perform Colorspace conversion
@@ -89,6 +108,8 @@ HRESULT RGBToNV12::Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV)
         if (FAILED(hr)) {
             PRINTERR(hr, "CreateVideoProcessor");
         }
+
+        _SetColorSpace();
     }
 
     /// Obtain Video Processor Input view from input texture

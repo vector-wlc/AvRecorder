@@ -54,11 +54,14 @@ SimpleCapture::SimpleCapture(
     m_session = m_framePool.CreateCaptureSession(m_item);
     m_lastSize = size;
     m_frameArrived = m_framePool.FrameArrived(auto_revoke, {this, &SimpleCapture::OnFrameArrived});
-    __CheckNo(SUCCEEDED(m_rgbToNv12.Init(d3dDevice.get(), m_d3dContext.get())));
+
+    m_rgbToNv12.Open(d3dDevice.get(), m_d3dContext.get());
     m_nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
     m_xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
     __CheckNo(m_nv12Frame);
     __CheckNo(m_xrgbFrame);
+    m_isCapture = true;
+    m_cnt = 5;
 }
 
 // Start sending capture frames
@@ -90,7 +93,7 @@ void SimpleCapture::Close()
     }
     m_nv12Buffers.Clear();
     m_xrgbBuffers.Clear();
-    m_rgbToNv12.Cleanup();
+    m_rgbToNv12.Close();
     Free(m_nv12Frame, [this] { av_frame_free(&m_nv12Frame); });
     Free(m_xrgbFrame, [this] { av_frame_free(&m_xrgbFrame); });
 }
@@ -117,23 +120,28 @@ void SimpleCapture::OnFrameArrived(
         m_nv12Buffers.Clear();
         m_xrgbBuffers.Clear();
     }
+    if (m_cnt > 0) {
+        --m_cnt;
+    }
+    m_isCapture = m_isCapture && !newSize || m_cnt > 0;
+    if (m_isCapture) {
+        auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+        D3D11_TEXTURE2D_DESC desc;
+        frameSurface->GetDesc(&desc);
+        auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
 
-    auto frameSurface = GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-    D3D11_TEXTURE2D_DESC desc;
-    frameSurface->GetDesc(&desc);
-    auto d3dDevice = GetDXGIInterfaceFromObject<ID3D11Device>(m_device);
-
-    // 首先尝试创建 NV12 纹理
-    auto tmpFormat = desc.Format;
-    desc.Format = DXGI_FORMAT_NV12;
-    if (GenNv12Frame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
-            m_nv12Buffers, m_nv12Frame, m_rgbToNv12)) {
-        m_pixType = _PixType::NV12;
-    } else {
-        desc.Format = tmpFormat;
-        GenRgbFrame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
-            m_xrgbBuffers, m_xrgbFrame);
-        m_pixType = _PixType::RGB;
+        // 首先尝试创建 NV12 纹理
+        auto tmpFormat = desc.Format;
+        desc.Format = DXGI_FORMAT_NV12;
+        if (GenNv12Frame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
+                m_nv12Buffers, m_nv12Frame, m_rgbToNv12)) {
+            m_pixType = _PixType::NV12;
+        } else {
+            desc.Format = tmpFormat;
+            GenRgbFrame(d3dDevice.get(), m_d3dContext.get(), desc, frameSurface.get(),
+                m_xrgbBuffers, m_xrgbFrame);
+            m_pixType = _PixType::RGB;
+        }
     }
 
     // com_ptr<ID3D11Texture2D> backBuffer;

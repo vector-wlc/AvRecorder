@@ -62,4 +62,6 @@ private:
     BufferFiller m_nv12Buffers;
     RGBToNV12 m_rgbToNv12;
     _PixType m_pixType;
+    bool m_isCapture = true;
+    int m_cnt = 5;
 };

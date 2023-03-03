@@ -25,7 +25,7 @@ bool GenNv12Frame(ID3D11Device* device, ID3D11DeviceContext* ctx, const D3D11_TE
     ctx->CopyResource(buffers.GetCopy(), nv12Img.get());
     D3D11_MAPPED_SUBRESOURCE resource;
     __CheckBool(SUCCEEDED(ctx->Map(buffers.GetMap(), 0, D3D11_MAP_READ, 0, &resource)));
-    auto height = std::min(outFrame->height, (int)resource.DepthPitch);
+    auto height = std::min(outFrame->height, (int)desc.Height);
     auto width = outFrame->width;
     auto srcLinesize = resource.RowPitch;
     auto dstLinesize = outFrame->linesize[0];
@@ -61,7 +61,7 @@ bool GenRgbFrame(ID3D11Device* device, ID3D11DeviceContext* ctx, const D3D11_TEX
     ctx->CopyResource(buffers.GetCopy(), img);
     D3D11_MAPPED_SUBRESOURCE resource;
     __CheckBool(SUCCEEDED(ctx->Map(buffers.GetMap(), 0, D3D11_MAP_READ, 0, &resource)));
-    auto height = std::min(outFrame->height, (int)resource.DepthPitch);
+    auto height = std::min(outFrame->height, (int)desc.Height);
     auto width = outFrame->width;
     auto srcLinesize = resource.RowPitch;
     auto dstLinesize = outFrame->linesize[0];

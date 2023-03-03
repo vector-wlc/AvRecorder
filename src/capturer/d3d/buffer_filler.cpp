@@ -26,7 +26,6 @@ bool BufferFiller::Fill(ID3D11Device* device, D3D11_TEXTURE2D_DESC desc, int max
         _mapIdx = (_mapIdx + 1) % _buffers.size();
         return true;
     }
-
     while (_buffers.size() < maxCnt) {
         ID3D11Texture2D* dstImg = nullptr;
         if (FAILED(device->CreateTexture2D(&desc, nullptr, &dstImg))) {

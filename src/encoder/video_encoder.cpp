@@ -15,10 +15,7 @@ extern "C" {
 std::vector<std::string> Encoder<MediaType::VIDEO>::_usableEncoders;
 
 Encoder<MediaType::VIDEO>::Encoder()
-    : _rgbToYuv420(AV_PIX_FMT_BGR24, AV_PIX_FMT_YUV420P)
-    , _xrgbToYuv420(AV_PIX_FMT_BGR0, AV_PIX_FMT_YUV420P)
-    , _nv12ToYuv420(AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P)
-    , _rgbToNv12(AV_PIX_FMT_BGR24, AV_PIX_FMT_NV12)
+    : _rgbToNv12(AV_PIX_FMT_BGR24, AV_PIX_FMT_NV12)
     , _xrgbToNv12(AV_PIX_FMT_BGR0, AV_PIX_FMT_NV12)
 {
 }
@@ -32,14 +29,8 @@ bool Encoder<MediaType::VIDEO>::Open(const Param& encodeParam, AVFormatContext* 
     // 打开编码器
     __CheckBool(avcodec_open2(_codecCtx, _codec, nullptr) >= 0);
 
-    if (!_isHardware) {
-        __CheckBool(_rgbToYuv420.SetSize(encodeParam.width, encodeParam.height));
-        __CheckBool(_xrgbToYuv420.SetSize(encodeParam.width, encodeParam.height));
-        __CheckBool(_nv12ToYuv420.SetSize(encodeParam.width, encodeParam.height));
-    } else {
-        __CheckBool(_rgbToNv12.SetSize(encodeParam.width, encodeParam.height));
-        __CheckBool(_xrgbToNv12.SetSize(encodeParam.width, encodeParam.height));
-    }
+    __CheckBool(_rgbToNv12.SetSize(encodeParam.width, encodeParam.height));
+    __CheckBool(_xrgbToNv12.SetSize(encodeParam.width, encodeParam.height));
 
     _isOpen = true;
     return true;
@@ -115,7 +106,7 @@ void Encoder<MediaType::VIDEO>::_FindUsableEncoders()
 bool Encoder<MediaType::VIDEO>::_Init(const Param& encodeParam, AVFormatContext* fmtCtx)
 {
     _isHardware = encodeParam.name != "libx264";
-    _pixFmt = _isHardware ? AV_PIX_FMT_CUDA : AV_PIX_FMT_YUV420P;
+    _pixFmt = _isHardware ? AV_PIX_FMT_CUDA : AV_PIX_FMT_NV12;
     if (_isHardware && av_hwdevice_ctx_create(&_hwDeviceCtx, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0) < 0) { // 硬件解码
         __DebugPrint("av_hwdevice_ctx_create failed\n");
         return false;
@@ -173,34 +164,20 @@ bool Encoder<MediaType::VIDEO>::_Trans(AVFrame* frame)
     if (!_isOpen) {
         return false;
     }
-    if (!_isHardware) {
-        switch (frame->format) {
-        case AV_PIX_FMT_BGR24:
-            _bufferFrame = _rgbToYuv420.Trans(frame);
-            break;
+    switch (frame->format) {
+    case AV_PIX_FMT_BGR24:
+        _bufferFrame = _rgbToNv12.Trans(frame);
+        break;
 
-        case AV_PIX_FMT_BGR0:
-            _bufferFrame = _xrgbToYuv420.Trans(frame);
-            break;
+    case AV_PIX_FMT_BGR0:
+        _bufferFrame = _rgbToNv12.Trans(frame);
+        break;
 
-        default: // NV12
-            _bufferFrame = _nv12ToYuv420.Trans(frame);
-            break;
-        }
-    } else {
-        switch (frame->format) {
-        case AV_PIX_FMT_BGR24:
-            _bufferFrame = _rgbToNv12.Trans(frame);
-            break;
-
-        case AV_PIX_FMT_BGR0:
-            _bufferFrame = _rgbToNv12.Trans(frame);
-            break;
-
-        default: // NV12
-            _bufferFrame = frame;
-            break;
-        }
+    default: // NV12
+        _bufferFrame = frame;
+        break;
+    }
+    if (_isHardware) {
         _bufferFrame = _ToHardware();
     }
     __CheckBool(_bufferFrame);

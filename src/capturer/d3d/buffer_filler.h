@@ -17,7 +17,7 @@
 
 class BufferFiller {
 public:
-    bool Fill(ID3D11Device* device, D3D11_TEXTURE2D_DESC desc, int maxCnt = 5);
+    bool Fill(ID3D11Device* device, D3D11_TEXTURE2D_DESC desc, int maxCnt = 3);
     bool Reset();
     ID3D11Texture2D* GetCopy() { return _buffers[_copyIdx]; }
     ID3D11Texture2D* GetMap() { return _buffers[_mapIdx]; }

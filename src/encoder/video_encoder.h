@@ -36,9 +36,6 @@ private:
     AVFrame* _ToHardware();
     static void _FindUsableEncoders();
     bool _isHardware = false;
-    PixTransformer _rgbToYuv420;
-    PixTransformer _xrgbToYuv420;
-    PixTransformer _nv12ToYuv420;
     PixTransformer _rgbToNv12;
     PixTransformer _xrgbToNv12;
     AVFrame* _bufferFrame = nullptr;
@@ -51,7 +48,7 @@ private:
     static std::vector<std::string> _usableEncoders;
     AVBufferRef* _hwDeviceCtx = nullptr;
     AVFrame* _hwFrame = nullptr;
-    AVPixelFormat _pixFmt = AV_PIX_FMT_YUV420P;
+    AVPixelFormat _pixFmt = AV_PIX_FMT_NV12;
 };
 
 #endif

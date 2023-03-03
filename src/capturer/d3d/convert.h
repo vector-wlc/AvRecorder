@@ -64,13 +64,15 @@ private:
     D3D11_TEXTURE2D_DESC m_inDesc = {0};
     D3D11_TEXTURE2D_DESC m_outDesc = {0};
 
+    void _SetColorSpace();
+
 public:
     /// Initialize Video Context
-    HRESULT Init(ID3D11Device* pDev, ID3D11DeviceContext* pCtx);
+    HRESULT Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx);
     /// Perform Colorspace conversion
     HRESULT Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV);
     /// Release all resources
-    void Cleanup();
+    void Close();
 
 public:
     /// Constructor
@@ -78,6 +80,6 @@ public:
     /// Destructor. Release all resources before destroying object
     ~RGBToNV12()
     {
-        Cleanup();
+        Close();
     }
 };

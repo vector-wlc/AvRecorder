@@ -80,7 +80,7 @@ bool DxgiCapturer::Open(int idx, int width, int height)
     hr = hDxgiOutput1->DuplicateOutput(_hDevice, &_hDeskDupl);
     Free(hDxgiOutput1, [=] { hDxgiOutput1->Release(); });
     __CheckBool(SUCCEEDED(hr));
-    __CheckBool(SUCCEEDED(_rgbToNv12.Init(_hDevice, _hContext)));
+    _rgbToNv12.Open(_hDevice, _hContext);
     _nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
     _xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
     __CheckBool(_nv12Frame);
@@ -98,7 +98,7 @@ void DxgiCapturer::Close()
     _bInit = false;
     _nv12Buffers.Clear();
     _xrgbBuffers.Clear();
-    _rgbToNv12.Cleanup();
+    _rgbToNv12.Close();
     Free(_nv12Frame, [this] { av_frame_free(&_nv12Frame); });
     Free(_xrgbFrame, [this] { av_frame_free(&_xrgbFrame); });
     Free(_hDeskDupl, [this] { _hDeskDupl->Release(); });
