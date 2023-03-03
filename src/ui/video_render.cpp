@@ -102,8 +102,8 @@ bool VideoRender::Render(AVFrame* frame)
     if (frame == nullptr) {
         return true;
     }
-    __CheckBool(_Trans(frame));
     __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
+    __CheckBool(_Trans(frame));
     __CheckBool(_bufferFrame);
     MWComPtr<ID3D11Texture2D> pBackBuffer;
     __D3dCall(false, _swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer));
