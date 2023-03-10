@@ -1,17 +1,16 @@
 cmake_minimum_required(VERSION 3.5) # CMake install : https://cmake.org/download/
-project(AvRecorder LANGUAGES CXX)
+project(AvRecorder)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_PREFIX_PATH "e:/Qt/5.15.2/msvc2019_64") # Qt Kit Dir
+set(CMAKE_PREFIX_PATH "d:/Software/Qt/5.15.0/msvc2019_64") # Qt Kit Dir
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
 
 # ffmpeg
-include_directories(e:/ffmpeg/include)
-link_directories(e:/ffmpeg/lib)
+include_directories(d:/ffmpeg/include)
+link_directories(d:/ffmpeg/lib)
 
 include_directories(./src)
 

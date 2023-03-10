@@ -77,7 +77,7 @@ inline void SleepMs(int timeMs)
 }
 
 // 对于音频编码器的全局设置
-constexpr int AUDIO_SAMPLE_RATE = 44100;
+constexpr int AUDIO_SAMPLE_RATE = 48000;
 constexpr int AUDIO_CHANNEL = 1;
 constexpr AVSampleFormat AUDIO_FMT = AV_SAMPLE_FMT_FLTP;
 constexpr int MICROPHONE_INDEX = 0;

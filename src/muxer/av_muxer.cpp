@@ -97,7 +97,7 @@ bool AvMuxer::_CheckTime(double time)
     for (int idx = 1; idx < _infos.size(); ++idx) {
         minTime = std::min(double(_infos[idx].pts) / _infos[idx].fps, minTime);
     }
-    if (time - minTime > 0.3) { // 说明相差的太多了，下一帧不能再送往编码器
+    if (time - minTime > 0.1) { // 说明相差的太多了，下一帧不能再送往编码器
         return false;
     }
     return true;
@@ -110,7 +110,7 @@ void AvMuxer::Close()
     }
     // 清空编码器缓存
     for (int index = 0; index < _infos.size(); ++index) {
-        Write(nullptr, index, true);
+        __DebugPrint("stream: %d, time:%f", index, double(_infos[index].pts) / _infos[index].fps);
     }
     if (_isOpenFile) {
         __CheckNo(av_write_trailer(_fmtCtx) >= 0);

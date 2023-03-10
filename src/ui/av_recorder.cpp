@@ -18,7 +18,6 @@ AvRecorder::AvRecorder(QWidget* parent)
     _settingsParam.videoParam.fps = 30;
     _settingsParam.videoParam.name = Encoder<MediaType::VIDEO>::GetUsableEncoders().front();
     _settingsParam.outputDir = ".";
-
     WgcCapturer::Init();
     _InitUi();
     _InitConnect();
@@ -193,15 +192,15 @@ void AvRecorder::_StartPreview()
             _captureTimeLabel->setText(
                 QString("%1:%2:%3").arg(hour, 2, 10, QChar('0')).arg(minute, 2, 10, QChar('0')).arg(sec, 2, 10, QChar('0')));
             std::string text;
-            if (_avMuxer.IsEncodeOverload()) {
-                text += "编码过载, ";
-            }
-            if (_videoRecorder.IsCaptureOverload()) {
-                text += "捕获过载, ";
-            }
-            if (!text.empty()) {
-                _captureStatusLabel->setText("状态: " + QString(text.c_str()) + "请调低录制参数设置");
-            }
+            // if (_avMuxer.IsEncodeOverload()) {
+            //     text += "编码过载, ";
+            // }
+            // if (_videoRecorder.IsCaptureOverload()) {
+            //     text += "捕获过载, ";
+            // }
+            // if (!text.empty()) {
+            //     _captureStatusLabel->setText("状态: " + QString(text.c_str()) + "请调低录制参数设置");
+            // }
         } else if (_captureTimeLabel->text() != "00:00:00") {
             _captureTimeLabel->setText("00:00:00");
         }

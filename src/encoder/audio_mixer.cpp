@@ -83,7 +83,7 @@ bool AudioMixer::Init(const char* duration, int outputFrameSize)
     // inputs=输入流数量
     // duration=决定流的结束(longest最长输入时间,shortest最短,first第一个输入持续的时间)
     // dropout_transition= 输入流结束时,音量重整时间
-    snprintf(args, sizeof(args), "inputs=%d:duration=%s:dropout_transition=0",
+    snprintf(args, sizeof(args), "inputs=%llu:duration=%s:dropout_transition=0",
         _audioInputInfos.size(), duration);
     __CheckBool(avfilter_init_str(_audioMixInfo.filterCtx, args) == 0);
 

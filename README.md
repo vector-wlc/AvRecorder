@@ -7,7 +7,7 @@
 # AvRecorder
 Record audio and video via WGC, DXGI, BitBlt, CoreAudio, DirectX11 and FFmpeg
 
-Built by MinGW_64 11.2.0 + Qt_64 6.4.2 + FFmpeg 5.1.0
+Built by MSVC 2022 CMake + Qt_64 5.15.0 + FFmpeg 5.1.0
 
 ## 目前完成的功能
 

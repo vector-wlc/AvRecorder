@@ -1,5 +1,3 @@
-
-
 /*
  * @Coding: utf-8
  * @Author: vector-wlc
@@ -106,8 +104,21 @@ void Encoder<MediaType::VIDEO>::_FindUsableEncoders()
 bool Encoder<MediaType::VIDEO>::_Init(const Param& encodeParam, AVFormatContext* fmtCtx)
 {
     _isHardware = encodeParam.name != "libx264";
-    _pixFmt = _isHardware ? AV_PIX_FMT_CUDA : AV_PIX_FMT_NV12;
-    if (_isHardware && av_hwdevice_ctx_create(&_hwDeviceCtx, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0) < 0) { // 硬件解码
+    AVHWDeviceType hwType;
+    if (encodeParam.name == "libx264") {
+        _pixFmt = AV_PIX_FMT_NV12;
+    } else if (encodeParam.name == "h264_nvenc") {
+        _pixFmt = AV_PIX_FMT_CUDA;
+        hwType = AV_HWDEVICE_TYPE_CUDA;
+    } else if (encodeParam.name == "h264_qsv") {
+        _pixFmt = AV_PIX_FMT_QSV;
+        hwType = AV_HWDEVICE_TYPE_QSV;
+    } else if (encodeParam.name == "h264_amf") {
+        _pixFmt = AV_PIX_FMT_VULKAN;
+        hwType = AV_HWDEVICE_TYPE_VULKAN;
+    }
+    _isHardware = _pixFmt != AV_PIX_FMT_NV12;
+    if (_isHardware && av_hwdevice_ctx_create(&_hwDeviceCtx, hwType, nullptr, nullptr, 0) < 0) { // 硬件解码
         __DebugPrint("av_hwdevice_ctx_create failed\n");
         return false;
     }
@@ -143,7 +154,7 @@ bool Encoder<MediaType::VIDEO>::_SetHwFrameCtx()
 
     __CheckBool(hwFramesRef = av_hwframe_ctx_alloc(_hwDeviceCtx));
     framesCtx = (AVHWFramesContext*)(hwFramesRef->data);
-    framesCtx->format = AV_PIX_FMT_CUDA;
+    framesCtx->format = _pixFmt;
     framesCtx->sw_format = AV_PIX_FMT_NV12;
     framesCtx->width = _codecCtx->width;
     framesCtx->height = _codecCtx->height;

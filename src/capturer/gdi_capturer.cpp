@@ -5,7 +5,6 @@
  * @Description:
  */
 #include "gdi_capturer.h"
-
 #include "basic/basic.h"
 
 bool GdiCapturer::Open(HWND hwnd, int width, int height)

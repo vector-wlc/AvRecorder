@@ -19,7 +19,7 @@ bool AudioCapturer::Init(Type deviceType, CallBack callback, void* userInfo)
     __CheckBool(_CreateDevice(_pDeviceEnumerator, &_pDevice));
     __CheckBool(_CreateAudioClient(_pDevice, &_pAudioClient));
 
-    if (_IsFormatSupported(_pAudioClient)) {
+    if (!_IsFormatSupported(_pAudioClient)) {
         __CheckBool(_GetPreferFormat(_pAudioClient, &_formatex));
     }
     __CheckBool(_InitAudioClient(_pAudioClient, &_formatex));
