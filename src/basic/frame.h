@@ -36,7 +36,7 @@ public:
         const AVChannelLayout* channel_layout,
         int sampleRate, int nbSamples);
 
-    Frame(enum AVSampleFormat sampleFmt,
+    Frame(AVSampleFormat sampleFmt,
         const AVChannelLayout* channel_layout, int sampleRate,
         int nbSamples);
 
@@ -47,7 +47,7 @@ template <>
 class Frame<MediaType::VIDEO> : public __BasicFrame {
 public:
     static AVFrame* Alloc(AVPixelFormat pixFmt, int width, int height);
-    Frame(enum AVPixelFormat pixFmt, int width, int height);
+    Frame(AVPixelFormat pixFmt, int width, int height);
     Frame(AVFrame* frame);
 };
 

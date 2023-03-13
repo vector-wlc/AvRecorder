@@ -27,10 +27,8 @@ bool AudioRecorder::Open(
     for (int index = 0; index < deviceTypes.size(); ++index) {
         auto&& capturer = deviceTypes[index] == AudioCapturer::Microphone ? _micCapturer : _speakerCapturer;
         if (!capturer.Init(deviceTypes[index], _Callback, &(_infos[index]))) {
-            _infos[index].isUsable = false;
             continue;
         }
-        _infos[index].isUsable = true;
         auto&& format = capturer.GetFormat();
         __CheckBool(_mixer.AddAudioInput(index, format.nSamplesPerSec, format.nChannels,
             format.wBitsPerSample, _GetAVSampleFormat(format.wBitsPerSample)));
@@ -42,11 +40,11 @@ bool AudioRecorder::Open(
     _param = param;
     int streamIndex = -1;
     __CheckBool((streamIndex = muxer.AddAudioStream(param)) != -1);
-    __CheckBool(_mixer.Init("longest", muxer.GetCodecCtx(streamIndex)->frame_size));
+    __CheckBool(_mixer.Init(muxer.GetCodecCtx(streamIndex)->frame_size));
     muxer.Close();
 
     for (int index = 0; index < deviceTypes.size(); ++index) {
-        if (_infos[index].isUsable) {
+        if (_mixer.GetInputInfo(index) != nullptr) {
             auto&& capturer = deviceTypes[index] == AudioCapturer::Microphone ? _micCapturer : _speakerCapturer;
             __CheckBool(capturer.Start());
         }
@@ -62,6 +60,14 @@ void AudioRecorder::Close()
     _speakerCapturer.Stop();
     _mixer.Close();
     _infos.clear();
+}
+
+void AudioRecorder::SetVolumeScale(float scale, int mixIndex)
+{
+    auto info = _mixer.GetInputInfo(mixIndex);
+    if (info != nullptr) {
+        info->scale = scale;
+    }
 }
 
 bool AudioRecorder::LoadMuxer(AvMuxer& muxer)
@@ -88,11 +94,7 @@ void AudioRecorder::_Callback(void* data, size_t size, void* userInfo)
 {
     auto info = (Info*)userInfo;
     auto inputInfo = info->mixer->GetInputInfo(info->mixIndex);
-    if (inputInfo != nullptr) {
-        info->meanVolume = _AdjustVolume((uint8_t*)data, inputInfo->bitsPerSample / 8, size, info->scaleRate);
-    }
-    info->mixer->AddFrame(info->mixIndex, (uint8_t*)data, size);
-    auto frame = info->mixer->GetFrame();
+    auto frame = info->mixer->Convert(info->mixIndex, (uint8_t*)data, size);
     if (frame == nullptr) {
         return;
     }

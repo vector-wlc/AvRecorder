@@ -19,9 +19,6 @@ public:
         bool* isRecord = nullptr;
         int mixIndex;
         int* streamIndex = nullptr;
-        float scaleRate = 1;  // 音频幅度调整参数
-        float meanVolume = 0; // 每个音频的平均音量，用于渲染音量 [0, 1]
-        bool isUsable = false;
     };
 
     bool Open(const std::vector<AudioCapturer::Type>& deviceTypes,
@@ -34,16 +31,11 @@ public:
     bool StartRecord();
     void StopRecord();
     void Close();
-    const Info* GetCaptureInfo(int mixIndex) const
+    auto GetCaptureInfo(int mixIndex)
     {
-        return mixIndex >= 0 && mixIndex < _infos.size() ? &_infos[mixIndex] : nullptr;
+        return _mixer.GetInputInfo(mixIndex);
     }
-    void SetVolumeScale(float scale, int mixIndex)
-    {
-        if (mixIndex >= 0 && mixIndex < _infos.size()) {
-            _infos[mixIndex].scaleRate = scale;
-        }
-    }
+    void SetVolumeScale(float scale, int mixIndex);
 
 private:
     AudioCapturer _micCapturer;

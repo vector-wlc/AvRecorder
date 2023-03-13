@@ -143,8 +143,8 @@ void AvRecorder::_StartCapture(VideoCapturer::Method method)
 void AvRecorder::_DealCapture()
 {
     __CheckNo(_audioRecorder.Open({AudioCapturer::Microphone, AudioCapturer::Speaker}, _settingsParam.audioParam));
-    _microphoneWidget->setEnabled(_audioRecorder.GetCaptureInfo(MICROPHONE_INDEX)->isUsable);
-    _speakerWidget->setEnabled(_audioRecorder.GetCaptureInfo(SPEAKER_INDEX)->isUsable);
+    _microphoneWidget->setEnabled(_audioRecorder.GetCaptureInfo(MICROPHONE_INDEX) != nullptr);
+    _speakerWidget->setEnabled(_audioRecorder.GetCaptureInfo(SPEAKER_INDEX) != nullptr);
     _fpsLabel->setText(QString("FPS: %1").arg(_settingsParam.videoParam.fps));
     _videoEncodeLabel->setText(("编码器: " + _settingsParam.videoParam.name).c_str());
 }
