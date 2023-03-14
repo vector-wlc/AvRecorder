@@ -44,9 +44,9 @@ public:
                         SleepMs(sleepTime);
                     }
 #ifdef __AVDEBUG
-                    else if (sleepTime < 0) {
-                        printf("Time out : %lld\n", -sleepTime);
-                    }
+                    // else if (sleepTime < 0) {
+                    //     printf("Time out : %lld\n", -sleepTime);
+                    // }
 #endif
                     _isOverload = -sleepTime > 1000; // 捕获的过载时间设置为 1s
                     func();

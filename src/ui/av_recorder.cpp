@@ -95,6 +95,32 @@ void AvRecorder::_InitConnect()
         _StartPreview();
         _isLocked = false;
     });
+
+    _otherTimer.callOnTimeout([this] {
+        if (windowState() == Qt::WindowMinimized) {
+            return;
+        }
+        // 音频
+        auto info = _audioRecorder.GetCaptureInfo(MICROPHONE_INDEX);
+        _microphoneWidget->ShowVolume(info == nullptr ? 0 : info->volume);
+        info = _audioRecorder.GetCaptureInfo(SPEAKER_INDEX);
+        _speakerWidget->ShowVolume(info == nullptr ? 0 : info->volume);
+        // 状态栏
+        if (_isRecord) {
+            int interval = _recordTime.secsTo(QTime::currentTime());
+            int sec = interval % 60;
+            interval /= 60;
+            int minute = interval % 60;
+            int hour = interval / 60;
+            _captureTimeLabel->setText(
+                QString("%1:%2:%3").arg(hour, 2, 10, QChar('0')).arg(minute, 2, 10, QChar('0')).arg(sec, 2, 10, QChar('0')));
+            auto lossRate = _videoRecorder.GetLossRate();
+            int num = lossRate * 10000;
+            _videolossRate->setText(QString("丢帧率: %1.%2%").arg(num / 100, 2, 10, QChar('0')).arg(num % 100, 2, 10, QChar('0')));
+        } else if (_captureTimeLabel->text() != "00:00:00") {
+            _captureTimeLabel->setText("00:00:00");
+        }
+    });
 }
 
 AvRecorder::~AvRecorder()
@@ -171,40 +197,6 @@ void AvRecorder::_StartPreview()
         __CheckNo(_videoRender.Render(frame));
     });
 
-    // 其他的渲染就没啥要求了
-    // 直接使用 QTimer
-    _otherTimer.callOnTimeout([this] {
-        if (windowState() == Qt::WindowMinimized) {
-            return;
-        }
-        // 音频
-        auto volume = _audioRecorder.GetCaptureInfo(MICROPHONE_INDEX)->meanVolume;
-        _microphoneWidget->ShowVolume(volume);
-        volume = _audioRecorder.GetCaptureInfo(SPEAKER_INDEX)->meanVolume;
-        _speakerWidget->ShowVolume(volume);
-        // 状态栏
-        if (_isRecord) {
-            int interval = _recordTime.secsTo(QTime::currentTime());
-            int sec = interval % 60;
-            interval /= 60;
-            int minute = interval % 60;
-            int hour = interval / 60;
-            _captureTimeLabel->setText(
-                QString("%1:%2:%3").arg(hour, 2, 10, QChar('0')).arg(minute, 2, 10, QChar('0')).arg(sec, 2, 10, QChar('0')));
-            std::string text;
-            // if (_avMuxer.IsEncodeOverload()) {
-            //     text += "编码过载, ";
-            // }
-            // if (_videoRecorder.IsCaptureOverload()) {
-            //     text += "捕获过载, ";
-            // }
-            // if (!text.empty()) {
-            //     _captureStatusLabel->setText("状态: " + QString(text.c_str()) + "请调低录制参数设置");
-            // }
-        } else if (_captureTimeLabel->text() != "00:00:00") {
-            _captureTimeLabel->setText("00:00:00");
-        }
-    });
     // 刷新率设置为 25
     _otherTimer.start(40);
 }
@@ -223,6 +215,7 @@ void AvRecorder::_StartRecord()
         fileName.push_back('\\');
     }
     fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
+    // fileName += "test.mp4";
     __CheckNo(_avMuxer.Open(fileName));
     __CheckNo(_audioRecorder.LoadMuxer(_avMuxer));
     __CheckNo(_videoRecorder.LoadMuxer(_avMuxer));
@@ -330,6 +323,7 @@ void AvRecorder::_InitStatusBarUi()
     hLayout->addWidget(_captureMethodBox);
     _captureStatusLabel = new QLabel("状态: 正常");
     _captureTimeLabel = new QLabel("00:00:00");
+    _videolossRate = new QLabel("丢帧率: 00.00%");
     _fpsLabel = new QLabel("FPS: 30");
     auto statusBar = this->statusBar();
     statusBar->layout()->setSpacing(20);
@@ -337,6 +331,7 @@ void AvRecorder::_InitStatusBarUi()
     auto widget = new QWidget;
     widget->setLayout(hLayout);
     statusBar->layout()->addWidget(widget);
+    statusBar->layout()->addWidget(_videolossRate);
     statusBar->layout()->addWidget(_captureStatusLabel);
     statusBar->layout()->addWidget(_captureTimeLabel);
     statusBar->layout()->addWidget(_fpsLabel);

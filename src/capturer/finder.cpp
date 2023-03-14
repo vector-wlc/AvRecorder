@@ -70,7 +70,6 @@ const std::vector<MonitorFinder::Info>& MonitorFinder::GetList(bool isUpdate)
     }
     _list.clear();
     EnumDisplayMonitors(nullptr, nullptr, _MonitorEnumProc, (LPARAM) nullptr);
-    _DxgiMonitorEnum();
     return _list;
 }
 
@@ -90,29 +89,7 @@ BOOL CALLBACK MonitorFinder::_MonitorEnumProc(
     Info info;
     info.monitor = hMonitor;
     info.rect = monitorInfo.rcMonitor;
-    info.dxgi = nullptr;
     info.title = std::move(name);
     _list.push_back(std::move(info));
     return TRUE;
-}
-
-void MonitorFinder::_DxgiMonitorEnum()
-{
-    IDXGIAdapter* pAdapter;
-    IDXGIFactory* pFactory = NULL;
-    // Create a DXGIFactory object.
-    if (FAILED(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory))) {
-        return;
-    }
-    for (UINT i = 0;
-         pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND;
-         ++i) {
-        if (i < _list.size()) {
-            _list[i].dxgi = pAdapter;
-        }
-    }
-
-    if (pFactory) {
-        pFactory->Release();
-    }
 }

@@ -7,7 +7,7 @@
 #pragma once
 
 #include <chrono>
-#include "capturer/d3d/gen_frame.h"
+#include "d3d/gen_frame.h"
 
 class SimpleCapture {
 public:
@@ -60,7 +60,7 @@ private:
     AVFrame* m_nv12Frame = nullptr;
     BufferFiller m_xrgbBuffers;
     BufferFiller m_nv12Buffers;
-    RGBToNV12 m_rgbToNv12;
+    D3dConverter m_rgbToNv12;
     _PixType m_pixType;
     bool m_isCapture = true;
     int m_cnt = 5;

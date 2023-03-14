@@ -55,7 +55,21 @@ SimpleCapture::SimpleCapture(
     m_lastSize = size;
     m_frameArrived = m_framePool.FrameArrived(auto_revoke, {this, &SimpleCapture::OnFrameArrived});
 
-    m_rgbToNv12.Open(d3dDevice.get(), m_d3dContext.get());
+    // Set ColorSpace
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColorSpace;
+    inputColorSpace.Usage = 1;
+    inputColorSpace.RGB_Range = 0;
+    inputColorSpace.YCbCr_Matrix = 1;
+    inputColorSpace.YCbCr_xvYCC = 0;
+    inputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
+
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColorSpace;
+    outputColorSpace.Usage = 0;
+    outputColorSpace.RGB_Range = 0;
+    outputColorSpace.YCbCr_Matrix = 1;
+    outputColorSpace.YCbCr_xvYCC = 0;
+    outputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
+    m_rgbToNv12.Open(d3dDevice.get(), m_d3dContext.get(), inputColorSpace, outputColorSpace);
     m_nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
     m_xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
     __CheckNo(m_nv12Frame);

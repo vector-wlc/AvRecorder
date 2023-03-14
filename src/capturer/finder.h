@@ -34,7 +34,6 @@ public:
     struct Info {
         HMONITOR monitor = nullptr;
         std::wstring title;
-        IDXGIAdapter* dxgi = nullptr;
         RECT rect;
     };
 
@@ -49,6 +48,4 @@ private:
         LPRECT lprcMonitor, // pointer to monitor intersection rectangle
         LPARAM dwData       // data passed from EnumDisplayMonitors
     );
-
-    static void _DxgiMonitorEnum();
 };

@@ -48,7 +48,7 @@ bool VideoCapturer::Open(int monitorIdx, Method method)
 
     default: { // DXGI
         _dxgiCapturer = new DxgiCapturer;
-        __CheckBool(_dxgiCapturer->Open(monitorIdx, _width, _height));
+        __CheckBool(_dxgiCapturer->Open(_rect.left, _rect.top, _width, _height));
         break;
     }
     }

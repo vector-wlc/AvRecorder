@@ -6,6 +6,7 @@
  */
 #include "audio_render.h"
 #include <QPainter>
+#include "basic/basic.h"
 
 AudioRender::AudioRender(QLabel* parent)
     : QLabel(parent)
@@ -14,15 +15,17 @@ AudioRender::AudioRender(QLabel* parent)
 void AudioRender::ShowVolume(float volume)
 {
     float val = 0;
+    if (volume < 0) {
+        volume = -volume;
+    }
+
     if (volume > 0.001) {
         val = (20 * log10(volume) + 60) / 60;
     }
+
     auto diff = val - _lastShowVal;
-    if (diff > 0.02) {
-        diff = 0.02;
-    }
-    if (diff < -0.02) {
-        diff = -0.02;
+    if (diff < -0.015) {
+        diff = -0.015;
     }
     _lastShowVal += diff;
 }

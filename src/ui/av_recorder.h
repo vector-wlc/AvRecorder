@@ -51,6 +51,7 @@ private:
     QLabel* _captureTimeLabel = nullptr;
     QLabel* _fpsLabel = nullptr;
     QLabel* _videoEncodeLabel = nullptr;
+    QLabel* _videolossRate = nullptr;
     SettingsPage::Param _settingsParam;
     QVBoxLayout* _InitListUi();
     QVBoxLayout* _InitAudioUi();

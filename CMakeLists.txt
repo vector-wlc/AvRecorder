@@ -23,7 +23,7 @@ aux_source_directory(./src/muxer muxerSrcs)
 aux_source_directory(./src/recorder recorderSrcs)
 aux_source_directory(./src/ui uiSrcs)
 aux_source_directory(./src/capturer/wgc wgcSrcs)
-aux_source_directory(./src/capturer/d3d d3dSrcs)
+aux_source_directory(./src/d3d d3dSrcs)
 
 # Specify MSVC UTF-8 encoding   
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")

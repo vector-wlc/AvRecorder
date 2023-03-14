@@ -53,62 +53,51 @@ int NbSamplesToSize(int nbSamples, int bitsPerSample, int nbChannels)
     return (nbSamples * bitsPerSample * nbChannels) >> 3;
 }
 
-void CircleBuffer::SetSize(int size)
+bool FrameQueue::Init(int channelNums, int sampleRate, AVSampleFormat fmt, int nbSamples)
 {
-    _buffer.resize(size);
     _front = 0;
-    _back = 0;
-}
-
-bool CircleBuffer::Pop(uint8_t* data, int length)
-{
-    auto bufSize = _buffer.size();
-    // 需要判断当前缓存的数据长度是否够用
-    // 不够用返回 nullptr
-    int dataLength = _front >= _back ? _front - _back : _front - _back + bufSize;
-    if (dataLength < length) {
-        return false;
-    }
-    int secondSize = _back + length - bufSize;
-    if (secondSize <= 0) { // 缓存没有发生循环
-        memcpy(data, _buffer.data() + _back, length);
-        _back += length;
-        return true;
-    }
-#undef max
-    // 缓存发生了循环
-    int firstSize = std::max(length - secondSize, 0);
-    if (firstSize > 0) {
-        memcpy(data, _buffer.data() + _back, firstSize);
-    }
-    memcpy(data + firstSize, _buffer.data(), secondSize);
-    _back = secondSize;
+    _sampleRate = sampleRate;
+    _fmt = fmt;
+    _nbSamples = nbSamples;
+    _usedLinesize = nbSamples * channelNums * (fmt == AV_SAMPLE_FMT_S16 ? 2 : 4);
+    av_channel_layout_default(&_layout, channelNums);
+    _queue.emplace(fmt, &_layout, sampleRate, nbSamples);
     return true;
 }
 
-void CircleBuffer::Push(uint8_t* data, int length)
+Frame<MediaType::AUDIO> FrameQueue::Pop()
 {
-    auto bufSize = _buffer.size();
-    int dataLength = _front >= _back ? _front - _back : _front - _back + bufSize;
-    if (dataLength + length > bufSize) { // 需要申请内存了
-        // 将原来的内存复制到新申请的内存上面
-        decltype(_buffer) newBuffer((dataLength + length) * 2);
-        __CheckNo(Pop(newBuffer.data(), dataLength)); // 弹出之前的缓存
-        _buffer.swap(newBuffer);
-        _front = dataLength;
-        _back = 0;
+    if (_queue.size() > 1) {
+        auto frame = std::move(_queue.front());
+        _queue.pop();
+        return frame;
     }
-    int secondSize = length - (_buffer.size() - _front);
-    if (secondSize <= 0) { // 不需要循环拷贝
-        memcpy(_buffer.data() + _front, data, length);
+    return Frame<MediaType::AUDIO>();
+}
+
+void FrameQueue::Push(uint8_t* data, int length)
+{
+    if (length > _usedLinesize) { // 递归调用
+        Push(data, length / 2);
+        Push(data + length / 2, length / 2 + length % 2);
+        return;
+    }
+    auto&& frame = _queue.back().frame;
+    int secondLength = _front + length - _usedLinesize;
+    if (secondLength <= 0) { // 第一段缓存是够用的
+        memcpy(frame->data[0] + _front, data, length);
         _front += length;
         return;
     }
-
-    // 需要循环拷贝
-    memcpy(_buffer.data() + _front, data, length - secondSize);
-    memcpy(_buffer.data(), data, secondSize);
-    _front = secondSize;
+    // 第一段缓存不够用
+    int firstLength = length - secondLength;
+    if (firstLength > 0) {
+        memcpy(frame->data[0] + _front, data, firstLength);
+    }
+    // 载入一段新缓存
+    _queue.emplace(_fmt, &_layout, _sampleRate, _nbSamples);
+    memcpy(_queue.back().frame->data[0], data + firstLength, secondLength);
+    _front = secondLength;
 }
 
 bool Resampler::Open(int inChannelNums, int inSampleRate, AVSampleFormat inFmt,
@@ -122,7 +111,7 @@ bool Resampler::Open(int inChannelNums, int inSampleRate, AVSampleFormat inFmt,
     av_opt_set_chlayout(_swrCtx, "in_chlayout", &tmpLayout, 0);
     av_opt_set_int(_swrCtx, "in_sample_rate", inSampleRate, 0);
     av_opt_set_sample_fmt(_swrCtx, "in_sample_fmt", inFmt, 0);
-    __CheckBool(_fromFrame = Frame<MediaType::AUDIO>::Alloc(inFmt, &tmpLayout, inSampleRate, outSampleRate / 100));
+    __CheckBool(_fromQueue.Init(inChannelNums, inSampleRate, inFmt, inSampleRate / 100 * 2));
 
     av_channel_layout_default(&tmpLayout, outChannelNums);
     av_opt_set_chlayout(_swrCtx, "out_chlayout", &tmpLayout, 0);
@@ -133,48 +122,108 @@ bool Resampler::Open(int inChannelNums, int inSampleRate, AVSampleFormat inFmt,
         __DebugPrint("swr_init(_swrCtx) failed\n");
         return false;
     }
-    __CheckBool(_swrFrame = Frame<MediaType::AUDIO>::Alloc(outFmt, &tmpLayout, outSampleRate, inSampleRate / 100));
-    __CheckBool(_toFrame = Frame<MediaType::AUDIO>::Alloc(outFmt, &tmpLayout, outSampleRate, outNbSample));
+    __CheckBool(_toQueue.Init(outChannelNums, outSampleRate, outFmt, outNbSample));
+    __CheckBool(_swrFrame = Frame<MediaType::AUDIO>::Alloc(outFmt, &tmpLayout, outSampleRate, outSampleRate / 100 * 2));
 
-    _fromBuffer.SetSize(_fromFrame->linesize[0] * 2);
-    _toBuffer.SetSize(_toFrame->linesize[0] * 2);
     return true;
-}
-
-AVFrame* Resampler::Convert(uint8_t* data, int size, bool isWriteToFile)
-{
-    // 第一：此函数需要等待接受的数据是 输出频率 / 100 的整倍数
-    // 第二：此函数转换完成之后需要等待数据攒够 outNbSample 才能输出
-    if (data == nullptr) {
-        return nullptr;
-    }
-    _fromBuffer.Push(data, size);
-    for (; true;) { // 转换
-        if (!_fromBuffer.Pop(_fromFrame->data[0], _fromFrame->linesize[0])) {
-            break;
-        }
-        __DebugPrint("%d %d", _fromFrame->linesize[0], memcmp(data, _fromFrame->data[0], _fromFrame->linesize[0]));
-        if (isWriteToFile) {
-            auto fPtr = fopen("test.pcm", "ab");
-            fwrite(_fromFrame->data[0], _fromFrame->linesize[0], 1, fPtr);
-            fclose(fPtr);
-        }
-        __CheckNullptr(swr_convert(_swrCtx, _swrFrame->data, _swrFrame->nb_samples,
-            (const uint8_t**)_fromFrame->data, _fromFrame->nb_samples));
-        _toBuffer.Push(_swrFrame->data[0], _swrFrame->linesize[0]);
-    }
-    if (!_toBuffer.Pop(_toFrame->data[0], _toFrame->linesize[0])) {
-        return nullptr;
-    }
-    return _toFrame;
 }
 
 void Resampler::Close()
 {
     Free(_swrCtx, [this] { swr_free(&_swrCtx); });
-    Free(_toFrame, [this] { av_frame_free(&_toFrame); });
     Free(_swrFrame, [this] { av_frame_free(&_swrFrame); });
-    Free(_fromFrame, [this] { av_frame_free(&_fromFrame); });
+}
+
+bool Resampler::Convert(uint8_t* data, int size)
+{
+    std::vector<Frame<MediaType::AUDIO>> ret;
+    if (data == nullptr) {
+        return false;
+    }
+    _fromQueue.Push(data, size);
+    for (; true;) { // 转换
+        auto frame = _fromQueue.Pop();
+        if (frame.frame == nullptr) {
+            break;
+        }
+        __CheckNullptr(swr_convert(_swrCtx, _swrFrame->data, _swrFrame->nb_samples, //
+            (const uint8_t**)frame.frame->data, frame.frame->nb_samples));
+        _toQueue.Push(_swrFrame->data[0], _swrFrame->linesize[0]);
+    }
+    return true;
+}
+
+AVFrame* AudioMixer::Convert(uint32_t index, uint8_t* inBuf, uint32_t size)
+{
+    std::lock_guard<std::mutex> locker(_mutex);
+    auto iter = _audioInputInfos.find(index);
+    __CheckNullptr(iter != _audioInputInfos.end());
+    __CheckNullptr(iter->second.resampler->Convert(inBuf, size));
+    return _AdjustVolume() ? _outputFrame : nullptr;
+}
+
+bool AudioMixer::_AdjustVolume()
+{
+    // 检测所有流之间是不是相差太大了以及缓存的数据是不是太多了
+    // 如果缓存的数据太多，直接将所有的队列删除同样的数据
+    // 如果两个流直接数据相差太大，将多的那个减到和少的那个一样
+    constexpr int MAX_DIFF = 10;
+    constexpr int MAX_BUF_SIZE = 20;
+    int minSize = INT_MAX;
+    int maxSize = INT_MIN;
+    FrameQueue* maxQueue = nullptr;
+#undef min
+    for (auto&& iter : _audioInputInfos) {
+        auto&& queue = iter.second.resampler->GetQueue();
+        if (queue.IsEmpty()) {
+            return false;
+        }
+        minSize = std::min(minSize, (int)queue.GetSize());
+        if (maxSize < (int)queue.GetSize()) {
+            maxSize = queue.GetSize();
+            maxQueue = &queue;
+        }
+    }
+
+    if (maxSize - minSize > MAX_DIFF) {
+        __DebugPrint("Clear MAX_DIFF");
+        for (int i = 0; i < maxSize - minSize; ++i) {
+            maxQueue->Pop();
+        }
+    }
+
+    for (auto iter = _audioInputInfos.begin(); iter != _audioInputInfos.end(); ++iter) {
+        auto&& frameQueue = iter->second.resampler->GetQueue();
+        if (minSize > MAX_BUF_SIZE) {
+            __DebugPrint("Clear MAX_BUF_SIZE");
+            for (int i = 0; i < minSize - 2; ++i) {
+                frameQueue.Pop();
+            }
+        }
+        auto frame = frameQueue.Pop();
+        auto scale = iter->second.scale;
+        auto writeStream = (float*)(_outputFrame->data[0]);
+        auto readStream = (float*)(frame.frame->data[0]);
+        iter->second.volume = readStream[0] * scale;
+
+        if (iter == _audioInputInfos.begin()) {
+            if (std::abs(scale - 1) < 0.01) { // 这种情况可以直接使用 memcpy 而不是下面那种低效率的逐个赋值
+                memcpy(writeStream, readStream, _outputFrame->linesize[0]);
+                continue;
+            }
+            // 要进行 scale, 只能逐个赋值
+            // 所以这里要清零
+            memset(writeStream, 0, _outputFrame->linesize[0]);
+        }
+        // 逐个计算赋值
+        for (int idx = 0; idx < _outputFrame->nb_samples; ++idx) {
+            writeStream[idx] += readStream[idx] * scale;
+            if (writeStream[idx] > 0.99) {
+                writeStream[idx] = 0.99;
+            }
+        }
+    }
+    return true;
 }
 
 AudioMixer::AudioMixer()
@@ -235,6 +284,7 @@ bool AudioMixer::Init(int outputFrameSize)
     }
     AVChannelLayout tmpLayout;
     av_channel_layout_default(&tmpLayout, _audioOutputInfo.channels);
+    __CheckBool(_outputFrame = Frame<MediaType::AUDIO>::Alloc(_audioOutputInfo.format, &tmpLayout, _audioOutputInfo.sampleRate, outputFrameSize));
     _inited = true;
     return true;
 }
@@ -244,8 +294,10 @@ bool AudioMixer::Close()
     if (!_inited) {
         return true;
     }
+    _inited = false;
     std::lock_guard<std::mutex> locker(_mutex);
     _audioInputInfos.clear();
+    Free(_outputFrame, [this] { av_frame_free(&_outputFrame); });
     return true;
 }
 
@@ -253,52 +305,4 @@ AudioMixer::AudioInfo* AudioMixer::GetInputInfo(uint32_t index)
 {
     auto iter = _audioInputInfos.find(index);
     return iter == _audioInputInfos.end() ? nullptr : &(iter->second);
-}
-
-// 添加一帧，根据index添加相应的输入流
-AVFrame* AudioMixer::Convert(uint32_t index, uint8_t* inBuf, uint32_t size)
-{
-    std::lock_guard<std::mutex> locker(_mutex);
-    auto iter = _audioInputInfos.find(index);
-    __CheckNullptr(iter != _audioInputInfos.end());
-    auto frame = iter->second.resampler->Convert(inBuf, size, index == 1);
-    if (frame != nullptr) {
-        iter->second.frameQueue.emplace(frame);
-    }
-    return _AdjustVolume() ? _outputFrame : nullptr;
-}
-
-bool AudioMixer::_AdjustVolume()
-{
-    for (auto&& iter : _audioInputInfos) {
-        if (iter.second.frameQueue.empty()) {
-            return false;
-        }
-    }
-
-    for (auto iter = _audioInputInfos.begin(); iter != _audioInputInfos.end(); ++iter) {
-        auto frame = std::move(iter->second.frameQueue.front());
-        iter->second.frameQueue.pop();
-        iter->second.meanVolume = *(float*)frame.frame->data[0];
-        if (iter == _audioInputInfos.begin()) {
-            _outputFrame = frame.frame;
-            frame.frame = nullptr;
-        } else {
-            for (int idx = 0; idx < _outputFrame->nb_samples; ++idx) {
-                ((float*)(_outputFrame->data[0]))[idx] += ((float*)(frame.frame->data[0]))[idx] * iter->second.scale;
-            }
-        }
-    }
-    return true;
-
-    // for (auto&& iter : _audioInputInfos) {
-    // }
-    // for (int i = 0; i < len; i += 2) {
-    //     short sample = *(short*)(buf + i);
-    //     sample = sample * inputMultiple;
-    //     if (sample > 32767) {
-    //         sample = 32767;
-    //     }
-    //     *(short*)(buf + i) = sample;
-    // }
 }

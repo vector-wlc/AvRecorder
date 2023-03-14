@@ -14,7 +14,7 @@ AVFrame* Frame<MediaType::AUDIO>::Alloc(AVSampleFormat sampleFmt,
     const AVChannelLayout* channel_layout,
     int sampleRate, int nbSamples)
 {
-    AVFrame* frame;
+    AVFrame* frame = nullptr;
     __CheckNullptr(frame = av_frame_alloc());
     frame->format = sampleFmt;
     av_channel_layout_copy(&frame->ch_layout, channel_layout);
@@ -72,7 +72,7 @@ Frame<MediaType::VIDEO>::Frame(AVFrame* frame)
     __CheckNo(av_frame_copy(this->frame, frame) >= 0);
 }
 
-bool PixTransformer::SetSize(int width, int height)
+bool FfmpegConverter::SetSize(int width, int height)
 {
     Free(_swsCtx, [this] { sws_freeContext(_swsCtx); });
     Free(_frameTo, [this] { av_frame_free(&_frameTo); });
@@ -86,7 +86,7 @@ bool PixTransformer::SetSize(int width, int height)
     return true;
 }
 
-AVFrame* PixTransformer::Trans(AVFrame* frameFrom)
+AVFrame* FfmpegConverter::Trans(AVFrame* frameFrom)
 {
     // 如果是空指针，直接把缓存返回
     if (frameFrom == nullptr) {
@@ -100,7 +100,7 @@ AVFrame* PixTransformer::Trans(AVFrame* frameFrom)
     return _frameTo;
 }
 
-PixTransformer::~PixTransformer()
+FfmpegConverter::~FfmpegConverter()
 {
     Free(_swsCtx, [this] { sws_freeContext(_swsCtx); });
     Free(_frameTo, [this] { av_frame_free(&_frameTo); });

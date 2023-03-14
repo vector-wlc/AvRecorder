@@ -13,8 +13,6 @@ extern "C" {
 std::vector<std::string> Encoder<MediaType::VIDEO>::_usableEncoders;
 
 Encoder<MediaType::VIDEO>::Encoder()
-    : _rgbToNv12(AV_PIX_FMT_BGR24, AV_PIX_FMT_NV12)
-    , _xrgbToNv12(AV_PIX_FMT_BGR0, AV_PIX_FMT_NV12)
 {
 }
 
@@ -26,9 +24,6 @@ bool Encoder<MediaType::VIDEO>::Open(const Param& encodeParam, AVFormatContext* 
 
     // 打开编码器
     __CheckBool(avcodec_open2(_codecCtx, _codec, nullptr) >= 0);
-
-    __CheckBool(_rgbToNv12.SetSize(encodeParam.width, encodeParam.height));
-    __CheckBool(_xrgbToNv12.SetSize(encodeParam.width, encodeParam.height));
 
     _isOpen = true;
     return true;
@@ -65,6 +60,7 @@ void Encoder<MediaType::VIDEO>::Close()
 
     Free(_codecCtx, [this] { avcodec_free_context(&_codecCtx); });
     Free(_hwDeviceCtx, [this] { av_buffer_unref(&_hwDeviceCtx); });
+    _converter = nullptr;
 }
 
 const std::vector<std::string>& Encoder<MediaType::VIDEO>::GetUsableEncoders()
@@ -175,18 +171,14 @@ bool Encoder<MediaType::VIDEO>::_Trans(AVFrame* frame)
     if (!_isOpen) {
         return false;
     }
-    switch (frame->format) {
-    case AV_PIX_FMT_BGR24:
-        _bufferFrame = _rgbToNv12.Trans(frame);
-        break;
-
-    case AV_PIX_FMT_BGR0:
-        _bufferFrame = _rgbToNv12.Trans(frame);
-        break;
-
-    default: // NV12
+    if (frame->format == AV_PIX_FMT_NV12) {
         _bufferFrame = frame;
-        break;
+    } else {
+        if (_converter == nullptr) {
+            _converter = std::make_unique<FfmpegConverter>(AVPixelFormat(frame->format), AV_PIX_FMT_NV12);
+            _converter->SetSize(frame->width, frame->height);
+        }
+        _bufferFrame = _converter->Trans(frame);
     }
     if (_isHardware) {
         _bufferFrame = _ToHardware();

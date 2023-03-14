@@ -37,7 +37,7 @@
 #include <d3d11_2.h>
 #include <unordered_map>
 
-class RGBToNV12 {
+class D3dConverter {
     /// Simple Preprocessor class
     /// Uses DXVAHD VideoProcessBlt to perform colorspace conversion
 private:
@@ -63,14 +63,15 @@ private:
     /// Required to optimize Video Processor stream usage
     D3D11_TEXTURE2D_DESC m_inDesc = {0};
     D3D11_TEXTURE2D_DESC m_outDesc = {0};
-
-    void _SetColorSpace();
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE _inColorSpace;
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE _outColorSpace;
 
 public:
     /// Initialize Video Context
-    HRESULT Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx);
+    HRESULT Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx,
+        const D3D11_VIDEO_PROCESSOR_COLOR_SPACE& inColorSpace, D3D11_VIDEO_PROCESSOR_COLOR_SPACE& outColorSpace);
     /// Perform Colorspace conversion
-    HRESULT Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV);
+    HRESULT Convert(ID3D11Texture2D* pIn, ID3D11Texture2D* pOut);
     /// Release all resources
     void Close();
 
@@ -78,7 +79,7 @@ public:
     /// Constructor
     // RGBToNV12(ID3D11Device *pDev, ID3D11DeviceContext *pCtx);
     /// Destructor. Release all resources before destroying object
-    ~RGBToNV12()
+    ~D3dConverter()
     {
         Close();
     }

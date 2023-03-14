@@ -14,9 +14,9 @@
 #include <tchar.h>
 
 #include "basic/frame.h"
+#include "d3d/convert.h"
 
 class VideoRender {
-
 public:
     VideoRender();
     ~VideoRender();
@@ -27,13 +27,17 @@ public:
     bool Render(AVFrame* frame);
 
 private:
-    bool _Trans(AVFrame* frame); // 将图片的格式转为 D3D 能渲染的格式
+    bool _Convert(AVFrame* frame, ID3D11Texture2D* texture); // 将图片的格式转为 D3D 能渲染的格式
+    bool _HardwareConvert(AVFrame* frame, ID3D11Texture2D* texture);
+    bool _SoftwareConvert(AVFrame* frame, ID3D11Texture2D* texture);
     IDXGISwapChain* _swapChain = nullptr;
     ID3D11Device* _device = nullptr;
     ID3D11DeviceContext* _context = nullptr;
-    PixTransformer _xrgbToArgb;
-    PixTransformer _rgbToArgb;
-    PixTransformer _nv12ToArgb;
+    std::unique_ptr<FfmpegConverter> _swConverter = nullptr;
+    std::unique_ptr<D3dConverter> _hwConverter = nullptr;
+    int _width = 0;
+    int _height = 0;
+    int _lastFmt;
     AVFrame* _bufferFrame = nullptr;
 };
 

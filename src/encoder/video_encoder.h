@@ -36,8 +36,7 @@ private:
     AVFrame* _ToHardware();
     static void _FindUsableEncoders();
     bool _isHardware = false;
-    PixTransformer _rgbToNv12;
-    PixTransformer _xrgbToNv12;
+    std::unique_ptr<FfmpegConverter> _converter = nullptr;
     AVFrame* _bufferFrame = nullptr;
     static constexpr const char* _encoderNames[4] = {
         "h264_nvenc",

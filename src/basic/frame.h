@@ -41,6 +41,7 @@ public:
         int nbSamples);
 
     Frame(AVFrame* frame);
+    Frame() = default;
 };
 
 template <>
@@ -49,24 +50,25 @@ public:
     static AVFrame* Alloc(AVPixelFormat pixFmt, int width, int height);
     Frame(AVPixelFormat pixFmt, int width, int height);
     Frame(AVFrame* frame);
+    Frame() = default;
 };
 
 struct SwsContext;
 
-class PixTransformer {
+class FfmpegConverter {
 private:
     AVPixelFormat _from;
     AVPixelFormat _to;
 
 public:
-    PixTransformer(AVPixelFormat from, AVPixelFormat to)
+    FfmpegConverter(AVPixelFormat from, AVPixelFormat to)
         : _from(from)
         , _to(to)
     {
     }
     bool SetSize(int width, int height);
     AVFrame* Trans(AVFrame* frameFrom);
-    ~PixTransformer();
+    ~FfmpegConverter();
 
 private:
     AVFrame* _frameTo = nullptr;

@@ -19,7 +19,8 @@ using namespace std;
 #endif
 
 /// Initialize Video Context
-HRESULT RGBToNV12::Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx)
+HRESULT D3dConverter::Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx,
+    const D3D11_VIDEO_PROCESSOR_COLOR_SPACE& inColorSpace, D3D11_VIDEO_PROCESSOR_COLOR_SPACE& outColorSpace)
 {
     m_pDev = pDev;
     m_pCtx = pCtx;
@@ -34,12 +35,13 @@ HRESULT RGBToNV12::Open(ID3D11Device* pDev, ID3D11DeviceContext* pCtx)
     if (FAILED(hr)) {
         PRINTERR(hr, "QAI for ID3D11VideoContext");
     }
-
+    _inColorSpace = inColorSpace;
+    _outColorSpace = outColorSpace;
     return hr;
 }
 
 /// Release all Resources
-void RGBToNV12::Close()
+void D3dConverter::Close()
 {
     for (auto& it : viewMap) {
         ID3D11VideoProcessorOutputView* pVPOV = it.second;
@@ -53,34 +55,15 @@ void RGBToNV12::Close()
     SAFE_RELEASE(m_pDev);
 }
 
-void RGBToNV12::_SetColorSpace()
-{
-    D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColorSpace;
-    inputColorSpace.Usage = 1;
-    inputColorSpace.RGB_Range = 0;
-    inputColorSpace.YCbCr_Matrix = 1;
-    inputColorSpace.YCbCr_xvYCC = 0;
-    inputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
-    m_pVidCtx->VideoProcessorSetStreamColorSpace(m_pVP, 0, &inputColorSpace);
-
-    D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColorSpace;
-    outputColorSpace.Usage = 0;
-    outputColorSpace.RGB_Range = 0;
-    outputColorSpace.YCbCr_Matrix = 1;
-    outputColorSpace.YCbCr_xvYCC = 0;
-    outputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
-    m_pVidCtx->VideoProcessorSetOutputColorSpace(m_pVP, &outputColorSpace);
-}
-
 /// Perform Colorspace conversion
-HRESULT RGBToNV12::Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV)
+HRESULT D3dConverter::Convert(ID3D11Texture2D* pIn, ID3D11Texture2D* pOut)
 {
     HRESULT hr = S_OK;
 
     D3D11_TEXTURE2D_DESC inDesc = {0};
     D3D11_TEXTURE2D_DESC outDesc = {0};
-    pRGB->GetDesc(&inDesc);
-    pYUV->GetDesc(&outDesc);
+    pIn->GetDesc(&inDesc);
+    pOut->GetDesc(&outDesc);
 
     /// Check if VideoProcessor needs to be reconfigured
     /// Reconfiguration is required if input/output dimensions have changed
@@ -109,13 +92,14 @@ HRESULT RGBToNV12::Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV)
             PRINTERR(hr, "CreateVideoProcessor");
         }
 
-        _SetColorSpace();
+        m_pVidCtx->VideoProcessorSetStreamColorSpace(m_pVP, 0, &_inColorSpace);
+        m_pVidCtx->VideoProcessorSetOutputColorSpace(m_pVP, &_outColorSpace);
     }
 
     /// Obtain Video Processor Input view from input texture
     ID3D11VideoProcessorInputView* pVPIn = nullptr;
     D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC inputVD = {0, D3D11_VPIV_DIMENSION_TEXTURE2D, {0, 0}};
-    hr = m_pVid->CreateVideoProcessorInputView(pRGB, m_pVPEnum, &inputVD, &pVPIn);
+    hr = m_pVid->CreateVideoProcessorInputView(pIn, m_pVPEnum, &inputVD, &pVPIn);
     if (FAILED(hr)) {
         PRINTERR(hr, "CreateVideoProcessInputView");
         return hr;
@@ -124,7 +108,7 @@ HRESULT RGBToNV12::Convert(ID3D11Texture2D* pRGB, ID3D11Texture2D* pYUV)
     /// Obtain Video Processor Output view from output texture
     ID3D11VideoProcessorOutputView* pVPOV = nullptr;
     D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC ovD = {D3D11_VPOV_DIMENSION_TEXTURE2D};
-    hr = m_pVid->CreateVideoProcessorOutputView(pYUV, m_pVPEnum, &ovD, &pVPOV);
+    hr = m_pVid->CreateVideoProcessorOutputView(pOut, m_pVPEnum, &ovD, &pVPOV);
     if (FAILED(hr)) {
         SAFE_RELEASE(pVPIn);
         PRINTERR(hr, "CreateVideoProcessorOutputView");

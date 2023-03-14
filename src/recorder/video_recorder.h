@@ -21,7 +21,7 @@ public:
     bool StartRecord();
     void StopRecord();
     auto GetCapturerType() { return _capturer.GetMethod(); }
-    AVFrame* GetRenderFrame() const { return _cnt > 5 ? _encodeFrame : nullptr; }
+    AVFrame* GetRenderFrame();
     // 停止录制
     void Close();
     void SetIsDrawCursor(bool isDraw)
@@ -29,6 +29,7 @@ public:
         _capturer.SetDrawCursor(isDraw);
     }
     bool IsCaptureOverload() const { return _captureTimer.IsOverload(); }
+    double GetLossRate() { return _lossPts == 0 ? 0 : (double)_lossPts / _totalPts; }
 
 private:
     bool _Open(Encoder<MediaType::VIDEO>::Param& param);
@@ -37,9 +38,12 @@ private:
     bool _isRecord = false;
     int _streamIndex = -1;
     AVFrame* _encodeFrame = nullptr;
+    AVFrame* _renderFrame = nullptr;
     Encoder<MediaType::VIDEO>::Param _param;
     Timer _captureTimer;
     Timer _muxTimer;
-    int _cnt = 0;
+    std::mutex _renderMtx;
+    uint64_t _totalPts = 0;
+    uint64_t _lossPts = 0;
 };
 #endif

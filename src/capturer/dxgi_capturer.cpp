@@ -3,7 +3,6 @@
 
 DxgiCapturer::DxgiCapturer()
 {
-    ZeroMemory(&_dxgiOutDesc, sizeof(_dxgiOutDesc));
     ZeroMemory(&_desc, sizeof(_desc));
 }
 
@@ -12,7 +11,7 @@ DxgiCapturer::~DxgiCapturer()
     Close();
 }
 
-bool DxgiCapturer::Open(int idx, int width, int height)
+bool DxgiCapturer::Open(int left, int top, int width, int height)
 {
     Close();
     HRESULT hr = S_OK;
@@ -63,12 +62,19 @@ bool DxgiCapturer::Open(int idx, int width, int height)
     // Get output
     INT nOutput = 0;
     IDXGIOutput* hDxgiOutput = nullptr;
-    hr = hDxgiAdapter->EnumOutputs(idx, &hDxgiOutput);
+    DXGI_OUTPUT_DESC dxgiOutDesc;
+    ZeroMemory(&dxgiOutDesc, sizeof(dxgiOutDesc));
+
+    for (int idx = 0; SUCCEEDED(hr = hDxgiAdapter->EnumOutputs(idx, &hDxgiOutput)); ++idx) {
+        // get output description struct
+        hDxgiOutput->GetDesc(&dxgiOutDesc);
+        if (dxgiOutDesc.DesktopCoordinates.left == left
+            && dxgiOutDesc.DesktopCoordinates.top == top) { // 寻找显示器
+            break;
+        }
+    }
     Free(hDxgiAdapter, [=] { hDxgiAdapter->Release(); });
     __CheckBool(SUCCEEDED(hr));
-
-    // get output description struct
-    hDxgiOutput->GetDesc(&_dxgiOutDesc);
 
     // QI for Output 1
     IDXGIOutput1* hDxgiOutput1 = nullptr;
@@ -80,7 +86,22 @@ bool DxgiCapturer::Open(int idx, int width, int height)
     hr = hDxgiOutput1->DuplicateOutput(_hDevice, &_hDeskDupl);
     Free(hDxgiOutput1, [=] { hDxgiOutput1->Release(); });
     __CheckBool(SUCCEEDED(hr));
-    _rgbToNv12.Open(_hDevice, _hContext);
+
+    // Set ColorSpace
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColorSpace;
+    inputColorSpace.Usage = 1;
+    inputColorSpace.RGB_Range = 0;
+    inputColorSpace.YCbCr_Matrix = 1;
+    inputColorSpace.YCbCr_xvYCC = 0;
+    inputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
+
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColorSpace;
+    outputColorSpace.Usage = 0;
+    outputColorSpace.RGB_Range = 0;
+    outputColorSpace.YCbCr_Matrix = 1;
+    outputColorSpace.YCbCr_xvYCC = 0;
+    outputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
+    _rgbToNv12.Open(_hDevice, _hContext, inputColorSpace, outputColorSpace);
     _nv12Frame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_NV12, width, height);
     _xrgbFrame = Frame<MediaType::VIDEO>::Alloc(AV_PIX_FMT_BGR0, width, height);
     __CheckBool(_nv12Frame);

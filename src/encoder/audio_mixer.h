@@ -32,32 +32,37 @@ extern "C" {
 #define __PCM_OUT_FRAME_SIZE (40000)
 
 // 循环缓存空间
-class CircleBuffer {
+class FrameQueue {
 public:
-    void SetSize(int size);
-    bool Pop(uint8_t* data, int length);
+    bool Init(int channelNums, int sampleRate, AVSampleFormat fmt, int nbSamples);
+    Frame<MediaType::AUDIO> Pop();
     void Push(uint8_t* data, int length);
+    bool IsEmpty() const { return _queue.size() < 2; }
+    auto GetSize() const { return _queue.size(); }
 
 private:
-    std::vector<uint8_t> _buffer;
     int _front = 0;
-    int _back = 0;
+    AVChannelLayout _layout;
+    int _sampleRate;
+    int _nbSamples;
+    int _usedLinesize;
+    AVSampleFormat _fmt;
+    std::queue<Frame<MediaType::AUDIO>> _queue;
 };
 
 class Resampler {
 public:
     bool Open(int inChannelNums, int inSampleRate, AVSampleFormat inFmt,
         int outChannelNums, int outSampleRate, AVSampleFormat outFmt, int outNbSample);
-    AVFrame* Convert(uint8_t* data, int size, bool isWriteToFile = false);
+    bool Convert(uint8_t* data, int size);
     void Close();
+    FrameQueue& GetQueue() { return _toQueue; }
 
 private:
-    AVFrame* _fromFrame = nullptr;
     AVFrame* _swrFrame = nullptr;
-    AVFrame* _toFrame = nullptr;
     SwrContext* _swrCtx = nullptr;
-    CircleBuffer _fromBuffer;
-    CircleBuffer _toBuffer;
+    FrameQueue _fromQueue;
+    FrameQueue _toQueue;
 };
 
 class AudioMixer {
@@ -69,9 +74,9 @@ public:
         AVSampleFormat format;
         std::string name;
         std::unique_ptr<Resampler> resampler;
-        std::queue<Frame<MediaType::AUDIO>> frameQueue;
-        float meanVolume = 0;
+        float volume = 0;
         float scale = 1;
+        int callTime = 0;
     };
     AudioMixer();
     virtual ~AudioMixer();

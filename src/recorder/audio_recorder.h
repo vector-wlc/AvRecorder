@@ -45,30 +45,7 @@ private:
     bool _isRecord = false;
     int _streamIndex;
     Encoder<MediaType::AUDIO>::Param _param;
-
     static void _Callback(void* data, size_t size, void* userInfo);
-    static float _AdjustVolume(uint8_t* buf, int step, int len, float inputMultiple);
-
-    template <typename T>
-    static float _AdjustVolumeT(uint8_t* buf, int len, float inputMultiple)
-    {
-        constexpr int32_t maxVal = T(~(1 << (sizeof(T) * 8 - 1)));
-        if (std::abs(inputMultiple - 1) > 0.01) { // 与 1 相差较大时才会进行音量调节
-            for (int i = 0; i < len; i += sizeof(T)) {
-                int32_t sample = *((T*)(buf + i));
-                sample *= inputMultiple;
-                if (sample > maxVal) {
-                    sample = maxVal;
-                }
-                if (sample < -maxVal) {
-                    sample = -maxVal;
-                }
-                *((T*)(buf + i)) = sample;
-            }
-        }
-        return std::abs(*(T*)buf * 1.0 / maxVal); // 直接取第一个元素的音量当作代表
-    }
-
     AVSampleFormat _GetAVSampleFormat(int wBitsPerSample)
     {
         return wBitsPerSample == 16 ? AV_SAMPLE_FMT_S16 : AV_SAMPLE_FMT_S32;

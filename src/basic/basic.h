@@ -25,7 +25,7 @@ extern std::mutex __mtx;
 // ***************
 // debug function
 
-#define __AVDEBUG
+// #define __AVDEBUG
 
 #ifdef __AVDEBUG
 #define __DebugPrint(fmtStr, ...) \
@@ -38,9 +38,15 @@ extern std::mutex __mtx;
             return retVal;                              \
         }                                               \
     } while (false)
+
 #else
 #define __DebugPrint(fmtStr, ...)
-#define __Check(retVal, ...) __VA_ARGS__;
+#define __Check(retVal, ...)  \
+    do {                      \
+        if (!(__VA_ARGS__)) { \
+            return retVal;    \
+        }                     \
+    } while (false)
 #endif
 
 #define __CheckNo(...) __Check(, __VA_ARGS__)

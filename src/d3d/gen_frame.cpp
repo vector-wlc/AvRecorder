@@ -12,7 +12,7 @@
 #undef max
 
 bool GenNv12Frame(ID3D11Device* device, ID3D11DeviceContext* ctx, const D3D11_TEXTURE2D_DESC& desc,
-    ID3D11Texture2D* img, BufferFiller& buffers, AVFrame*& outFrame, RGBToNV12& rgbToNv12)
+    ID3D11Texture2D* img, BufferFiller& buffers, AVFrame*& outFrame, D3dConverter& rgbToNv12)
 {
     winrt::com_ptr<ID3D11Texture2D> nv12Img = nullptr;
     if (FAILED(device->CreateTexture2D(&desc, nullptr, nv12Img.put()))) {

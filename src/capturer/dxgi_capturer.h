@@ -17,7 +17,7 @@ public:
     ~DxgiCapturer();
 
 public:
-    bool Open(int idx, int width, int height);
+    bool Open(int left, int top, int width, int height);
     void Close();
 
 public:
@@ -33,14 +33,13 @@ private:
     IDXGIOutputDuplication* _hDeskDupl = nullptr;
     IDXGISurface1* _hStagingSurf = nullptr;
     ID3D11Texture2D* _gdiImage = nullptr;
-    DXGI_OUTPUT_DESC _dxgiOutDesc;
     D3D11_TEXTURE2D_DESC _desc;
     bool _isAttached = false;
     AVFrame* _xrgbFrame = nullptr;
     AVFrame* _nv12Frame = nullptr;
     BufferFiller _xrgbBuffers;
     BufferFiller _nv12Buffers;
-    RGBToNV12 _rgbToNv12;
+    D3dConverter _rgbToNv12;
 };
 
 #endif

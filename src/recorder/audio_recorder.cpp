@@ -102,20 +102,4 @@ void AudioRecorder::_Callback(void* data, size_t size, void* userInfo)
         __CheckNo(info->streamIndex && *(info->streamIndex) != -1);
         __CheckNo(info->muxer->Write(frame, *(info->streamIndex)));
     }
-    av_frame_unref(frame);
-}
-
-float AudioRecorder::_AdjustVolume(uint8_t* buf, int step, int len, float inputMultiple)
-{
-    switch (step) {
-    case 1:
-        return _AdjustVolumeT<int8_t>(buf, len, inputMultiple);
-    case 2:
-        return _AdjustVolumeT<int16_t>(buf, len, inputMultiple);
-    case 4:
-        return _AdjustVolumeT<int32_t>(buf, len, inputMultiple);
-    default:
-        printf("undefined format\n");
-        return 0;
-    }
 }

@@ -10,20 +10,7 @@
 template <typename T>
 using MWComPtr = Microsoft::WRL::ComPtr<T>;
 
-#define __Str(exp) #exp
-#define __D3dCall(retVal, ...)                \
-    do {                                      \
-        auto hr = __VA_ARGS__;                \
-        if (FAILED(hr)) {                     \
-            __DebugPrint(__Str(__VA_ARGS__)); \
-            return retVal;                    \
-        }                                     \
-    } while (false)
-
 VideoRender::VideoRender()
-    : _xrgbToArgb(AV_PIX_FMT_BGR0, AV_PIX_FMT_RGBA)
-    , _rgbToArgb(AV_PIX_FMT_BGR24, AV_PIX_FMT_RGBA)
-    , _nv12ToArgb(AV_PIX_FMT_NV12, AV_PIX_FMT_RGBA)
 {
 }
 VideoRender::~VideoRender()
@@ -52,25 +39,23 @@ bool VideoRender::Open(HWND hwnd, unsigned int width, unsigned int height)
     sd.Flags = 0;
     sd.BufferCount = 1;
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    __D3dCall(false,
+    __CheckBool(SUCCEEDED(
         D3D11CreateDeviceAndSwapChain(
             nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0,
-            D3D11_SDK_VERSION, &sd, &_swapChain, &_device, nullptr, &_context));
-
-    __D3dCall(false, _swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0));
+            D3D11_SDK_VERSION, &sd, &_swapChain, &_device, nullptr, &_context)));
+    _width = width;
+    _height = height;
+    __CheckBool(SUCCEEDED(_swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0)));
 
     MWComPtr<ID3D11Texture2D> pBackBuffer;
-    __D3dCall(false, _swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer));
+    __CheckBool(SUCCEEDED(_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer)));
 
     // Create a render-target view
     MWComPtr<ID3D11RenderTargetView> renderTargetView;
-    __D3dCall(false, _device->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &renderTargetView));
+    __CheckBool(SUCCEEDED(_device->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &renderTargetView)));
 
     _context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 
-    __CheckBool(_xrgbToArgb.SetSize(width, height));
-    __CheckBool(_rgbToArgb.SetSize(width, height));
-    __CheckBool(_nv12ToArgb.SetSize(width, height));
     return true;
 }
 
@@ -79,20 +64,108 @@ void VideoRender::Close()
     Free(_swapChain, [this] { _swapChain->Release(); });
     Free(_device, [this] { _device->Release(); });
     Free(_context, [this] { _context->Release(); });
+    _swConverter = nullptr;
+    _hwConverter = nullptr;
 }
 
-bool VideoRender::_Trans(AVFrame* frame)
+bool VideoRender::_SoftwareConvert(AVFrame* frame, ID3D11Texture2D* texture)
 {
-    switch (frame->format) { // CPU 代价高
+    if (_swConverter == nullptr) {
+        auto fmt = AVPixelFormat(frame->format);
+        _swConverter = std::make_unique<FfmpegConverter>(fmt, AV_PIX_FMT_RGBA);
+        _swConverter->SetSize(_width, _height);
+    }
+    __CheckBool(_bufferFrame = _swConverter->Trans(frame));
+    _context->UpdateSubresource(texture, 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);
+    return true;
+}
+
+bool VideoRender::_Convert(AVFrame* frame, ID3D11Texture2D* texture)
+{
+    if (_lastFmt != frame->format) {
+        _swConverter = nullptr;
+        _hwConverter = nullptr;
+        _lastFmt = frame->format;
+    }
+    if (_HardwareConvert(frame, texture)) {
+        return true;
+    }
+    __CheckBool(_SoftwareConvert(frame, texture));
+    return true;
+}
+
+bool VideoRender::_HardwareConvert(AVFrame* frame, ID3D11Texture2D* texture)
+{
+    D3D11_TEXTURE2D_DESC desc;
+    texture->GetDesc(&desc);
+    switch (frame->format) {
     case AV_PIX_FMT_BGR0:
-        __CheckBool(_bufferFrame = _xrgbToArgb.Trans(frame));
+        desc.Format = DXGI_FORMAT_B8G8R8X8_UNORM;
         break;
-    case AV_PIX_FMT_BGR24:
-        __CheckBool(_bufferFrame = _rgbToArgb.Trans(frame));
+    case AV_PIX_FMT_NV12:
+        desc.Format = DXGI_FORMAT_NV12;
         break;
-    default: // NV12
-        __CheckBool(_bufferFrame = _nv12ToArgb.Trans(frame));
-        break;
+    default:
+        return false;
+    }
+    MWComPtr<ID3D11Texture2D> tmpTexture = nullptr;
+    __CheckBool(SUCCEEDED(_device->CreateTexture2D(&desc, nullptr, &tmpTexture)));
+
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.ArraySize = 1;
+    desc.BindFlags = 0;
+    desc.MiscFlags = 0;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.MipLevels = 1;
+    MWComPtr<ID3D11Texture2D> cpuTexture = nullptr;
+    __CheckBool(SUCCEEDED(_device->CreateTexture2D(&desc, nullptr, &cpuTexture)));
+    D3D11_MAPPED_SUBRESOURCE resource;
+    __CheckBool(SUCCEEDED(_context->Map(cpuTexture.Get(), 0, D3D11_MAP_WRITE, 0, &resource)));
+    if (desc.Format == DXGI_FORMAT_NV12) {
+        int srcRow = frame->linesize[0];
+        int dstRow = resource.RowPitch;
+        for (int row = 0; row < frame->height; ++row) { // Y
+            memcpy((uint8_t*)resource.pData + row * dstRow,
+                frame->data[0] + srcRow * row, frame->width);
+        }
+        for (int row = 0; row < frame->height / 2; ++row) { // UV
+            memcpy((uint8_t*)resource.pData + (row + frame->height) * dstRow,
+                frame->data[1] + srcRow * row, frame->width);
+        }
+    } else {
+        int srcRow = frame->linesize[0];
+        int dstRow = resource.RowPitch;
+        for (int row = 0; row < frame->height; ++row) {
+            memcpy((uint8_t*)resource.pData + row * dstRow,
+                frame->data[0] + srcRow * row, frame->width * 4);
+        }
+    }
+    _context->Unmap(cpuTexture.Get(), 0);
+    _context->CopyResource(tmpTexture.Get(), cpuTexture.Get());
+
+    if (_hwConverter == nullptr) {
+        _hwConverter = std::make_unique<D3dConverter>();
+        D3D11_VIDEO_PROCESSOR_COLOR_SPACE inputColorSpace;
+        inputColorSpace.Usage = 1;
+        inputColorSpace.RGB_Range = 0;
+        inputColorSpace.YCbCr_Matrix = 1;
+        inputColorSpace.YCbCr_xvYCC = 0;
+        inputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
+
+        D3D11_VIDEO_PROCESSOR_COLOR_SPACE outputColorSpace;
+        outputColorSpace.Usage = 0;
+        outputColorSpace.RGB_Range = 0;
+        outputColorSpace.YCbCr_Matrix = 1;
+        outputColorSpace.YCbCr_xvYCC = 0;
+        outputColorSpace.Nominal_Range = D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
+        if (FAILED(_hwConverter->Open(_device, _context, outputColorSpace, inputColorSpace))) {
+            return false;
+        }
+    }
+    if (FAILED(_hwConverter->Convert(tmpTexture.Get(), texture))) {
+        return false;
     }
     return true;
 }
@@ -103,12 +176,10 @@ bool VideoRender::Render(AVFrame* frame)
         return true;
     }
     __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);
-    __CheckBool(_Trans(frame));
-    __CheckBool(_bufferFrame);
     MWComPtr<ID3D11Texture2D> pBackBuffer;
-    __D3dCall(false, _swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer));
-    _context->UpdateSubresource(pBackBuffer.Get(), 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);
-    __D3dCall(false, _swapChain->Present(0, 0));
+    __CheckBool(SUCCEEDED(_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &pBackBuffer)));
+    _Convert(frame, pBackBuffer.Get());
+    __CheckBool(SUCCEEDED(_swapChain->Present(0, 0)));
     pBackBuffer->Release();
     return true;
 }
