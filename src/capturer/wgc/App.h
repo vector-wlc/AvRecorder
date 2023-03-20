@@ -17,8 +17,8 @@ public:
     void Initialize(
         winrt::Windows::UI::Composition::ContainerVisual const& root);
 
-    void StartCaptureWindow(HWND hwnd, int width, int height);
-    void StartCaptureMonitor(HMONITOR monitor, int width, int height);
+    bool StartCaptureWindow(HWND hwnd, int width, int height);
+    bool StartCaptureMonitor(HMONITOR monitor, int width, int height);
     void SetDrawCursor(bool isDrawCursor);
     void Close();
     AVFrame* GetFrame() { return m_capture->GetFrame(); }

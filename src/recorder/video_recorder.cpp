@@ -55,6 +55,9 @@ bool VideoRecorder::_Open(Encoder<MediaType::VIDEO>::Param& param)
 AVFrame* VideoRecorder::GetRenderFrame()
 {
     std::lock_guard<std::mutex> renderLk(_renderMtx);
+    if (_encodeFrame == nullptr) {
+        return nullptr;
+    }
     if (_renderFrame->format != _encodeFrame->format) {
         Free(_renderFrame, [this] { av_frame_free(&_renderFrame); });
         __CheckNullptr(_renderFrame = Frame<MediaType::VIDEO>::Alloc(

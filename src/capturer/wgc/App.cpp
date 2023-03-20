@@ -61,14 +61,16 @@ void App::Close()
     }
 }
 
-void App::StartCaptureWindow(HWND hwnd, int width, int height)
+bool App::StartCaptureWindow(HWND hwnd, int width, int height)
 {
     Close();
     auto item = CreateCaptureItemForWindow(hwnd);
+    __CheckBool(item);
     m_capture = new SimpleCapture(m_device, item, width, height);
     auto surface = m_capture->CreateSurface(m_compositor);
     m_brush.Surface(surface);
     m_capture->StartCapture();
+    return true;
 }
 
 void App::SetDrawCursor(bool isDrawCursor)
@@ -79,12 +81,14 @@ void App::SetDrawCursor(bool isDrawCursor)
     m_capture->SetDrawCursor(isDrawCursor);
 }
 
-void App::StartCaptureMonitor(HMONITOR monitor, int width, int height)
+bool App::StartCaptureMonitor(HMONITOR monitor, int width, int height)
 {
     Close();
     auto item = CreateCaptureItemForMonitor(monitor);
+    __CheckBool(item);
     m_capture = new SimpleCapture(m_device, item, width, height);
     auto surface = m_capture->CreateSurface(m_compositor);
     m_brush.Surface(surface);
     m_capture->StartCapture();
+    return true;
 }

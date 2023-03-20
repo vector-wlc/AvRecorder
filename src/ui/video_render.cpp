@@ -68,18 +68,6 @@ void VideoRender::Close()
     _hwConverter = nullptr;
 }
 
-bool VideoRender::_SoftwareConvert(AVFrame* frame, ID3D11Texture2D* texture)
-{
-    if (_swConverter == nullptr) {
-        auto fmt = AVPixelFormat(frame->format);
-        _swConverter = std::make_unique<FfmpegConverter>(fmt, AV_PIX_FMT_RGBA);
-        _swConverter->SetSize(_width, _height);
-    }
-    __CheckBool(_bufferFrame = _swConverter->Trans(frame));
-    _context->UpdateSubresource(texture, 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);
-    return true;
-}
-
 bool VideoRender::_Convert(AVFrame* frame, ID3D11Texture2D* texture)
 {
     if (_lastFmt != frame->format) {
@@ -91,6 +79,18 @@ bool VideoRender::_Convert(AVFrame* frame, ID3D11Texture2D* texture)
         return true;
     }
     __CheckBool(_SoftwareConvert(frame, texture));
+    return true;
+}
+
+bool VideoRender::_SoftwareConvert(AVFrame* frame, ID3D11Texture2D* texture)
+{
+    if (_swConverter == nullptr) {
+        auto fmt = AVPixelFormat(frame->format);
+        _swConverter = std::make_unique<FfmpegConverter>(fmt, AV_PIX_FMT_RGBA);
+        _swConverter->SetSize(_width, _height);
+    }
+    __CheckBool(_bufferFrame = _swConverter->Trans(frame));
+    _context->UpdateSubresource(texture, 0, nullptr, _bufferFrame->data[0], _bufferFrame->linesize[0], 0);
     return true;
 }
 
@@ -173,6 +173,7 @@ bool VideoRender::_HardwareConvert(AVFrame* frame, ID3D11Texture2D* texture)
 bool VideoRender::Render(AVFrame* frame)
 {
     if (frame == nullptr) {
+        __CheckBool(SUCCEEDED(_swapChain->Present(0, 0)));
         return true;
     }
     __CheckBool(_device != nullptr && _swapChain != nullptr && _context != nullptr);

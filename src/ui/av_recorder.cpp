@@ -164,6 +164,7 @@ void AvRecorder::_StartCapture(VideoCapturer::Method method)
     _DealCapture();
     _isDrawCursorBox->setEnabled(true);
     _recordBtn->setEnabled(true);
+    _videoRecorder.SetIsDrawCursor(_isDrawCursorBox->isChecked());
 }
 
 void AvRecorder::_DealCapture()

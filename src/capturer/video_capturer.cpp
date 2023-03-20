@@ -13,7 +13,7 @@ bool VideoCapturer::Open(HWND hwnd, Method method)
     switch (method) {
     case WGC: {
         _wgcCapturer = WgcCapturer::New();
-        _wgcCapturer->StartCapturerWindow(hwnd, _width, _height);
+        __CheckBool(_wgcCapturer->StartCapturerWindow(hwnd, _width, _height));
         break;
     }
 
@@ -42,7 +42,7 @@ bool VideoCapturer::Open(int monitorIdx, Method method)
     case WGC: {
         auto monitor = monitorInfo.monitor;
         _wgcCapturer = WgcCapturer::New();
-        _wgcCapturer->StartCapturerMonitor(monitor, _width, _height);
+        __CheckBool(_wgcCapturer->StartCapturerMonitor(monitor, _width, _height));
         break;
     }
 

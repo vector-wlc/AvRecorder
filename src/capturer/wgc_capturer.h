@@ -15,8 +15,8 @@
 
 class WgcCapturer {
 public:
-    void StartCapturerWindow(HWND hwnd, int width, int height);
-    void StartCapturerMonitor(HMONITOR monitor, int width, int height);
+    bool StartCapturerWindow(HWND hwnd, int width, int height);
+    bool StartCapturerMonitor(HMONITOR monitor, int width, int height);
     void SetDrawCursor(bool isDrawCursor) { _app->SetDrawCursor(isDrawCursor); }
     static void Init();
     static WgcCapturer* New();
