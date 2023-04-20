@@ -50,6 +50,8 @@ void SettingsPage::_WriteSettings()
     _param->videoParam.name = _videoEncoderBox->currentText().toStdString();
     _param->audioParam.bitRate = _audioBitRateBox->value() * 1000;
     _param->outputDir = _fileDirEdit->text().toStdString();
+    _param->liveUrl = _liveUrlEdit->text().toStdString();
+    _param->liveName = _liveNameEdit->text().toStdString();
 }
 
 void SettingsPage::_InitUi()
@@ -59,6 +61,7 @@ void SettingsPage::_InitUi()
     layout->addWidget(_InitVideoUi());
     layout->addWidget(_InitAudioUi());
     layout->addWidget(_InitOutputUi());
+    layout->addWidget(_InitLiveUi());
     auto hLayout = new QHBoxLayout;
     _applyBtn = new QPushButton("应用");
     _cancelBtn = new QPushButton("取消");
@@ -107,6 +110,7 @@ QGroupBox* SettingsPage::_InitAudioUi()
     groupBox->setLayout(layout);
     return groupBox;
 }
+
 QGroupBox* SettingsPage::_InitOutputUi()
 {
     auto groupBox = new QGroupBox("输出");
@@ -119,6 +123,23 @@ QGroupBox* SettingsPage::_InitOutputUi()
     return groupBox;
 }
 
+QGroupBox* SettingsPage::_InitLiveUi()
+{
+    auto groupBox = new QGroupBox("直播");
+    auto layout = new QVBoxLayout;
+    _liveUrlEdit = new QLineEdit(_param->liveUrl.c_str());
+    _liveNameEdit = new QLineEdit(_param->liveName.c_str());
+    auto liveUrlLayout = new QHBoxLayout();
+    liveUrlLayout->addWidget(new QLabel("地址:"));
+    liveUrlLayout->addWidget(_liveUrlEdit);
+    auto liveNameLayout = new QHBoxLayout();
+    liveNameLayout->addWidget(new QLabel("名称(密钥):"));
+    liveNameLayout->addWidget(_liveNameEdit);
+    layout->addLayout(liveUrlLayout);
+    layout->addLayout(liveNameLayout);
+    groupBox->setLayout(layout);
+    return groupBox;
+}
 QHBoxLayout* SettingsPage::_CreateDescription(std::string_view text, std::string_view textEx, QWidget* widget)
 {
     auto layout = new QHBoxLayout;

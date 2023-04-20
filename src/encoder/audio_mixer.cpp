@@ -274,17 +274,22 @@ bool AudioMixer::AddAudioOutput(const uint32_t sampleRate,
     return true;
 }
 
-bool AudioMixer::Init(int outputFrameSize)
+bool AudioMixer::SetOutFrameSize(int outFrameSize)
 {
+    if (_outFrameSize == outFrameSize) {
+        return true;
+    }
+    _outFrameSize = outFrameSize;
     for (auto&& filterInfoPair : _audioInputInfos) {
         auto&& filterInfo = filterInfoPair.second;
         filterInfo.resampler = std::make_unique<Resampler>();
         __CheckBool(filterInfo.resampler->Open(filterInfo.channels, filterInfo.sampleRate, filterInfo.format,
-            _audioOutputInfo.channels, _audioOutputInfo.sampleRate, _audioOutputInfo.format, outputFrameSize));
+            _audioOutputInfo.channels, _audioOutputInfo.sampleRate, _audioOutputInfo.format, outFrameSize));
     }
     AVChannelLayout tmpLayout;
     av_channel_layout_default(&tmpLayout, _audioOutputInfo.channels);
-    __CheckBool(_outputFrame = Frame<MediaType::AUDIO>::Alloc(_audioOutputInfo.format, &tmpLayout, _audioOutputInfo.sampleRate, outputFrameSize));
+    Free(_outputFrame, [this] { av_frame_free(&_outputFrame); });
+    __CheckBool(_outputFrame = Frame<MediaType::AUDIO>::Alloc(_audioOutputInfo.format, &tmpLayout, _audioOutputInfo.sampleRate, outFrameSize));
     _inited = true;
     return true;
 }
@@ -298,6 +303,7 @@ bool AudioMixer::Close()
     std::lock_guard<std::mutex> locker(_mutex);
     _audioInputInfos.clear();
     Free(_outputFrame, [this] { av_frame_free(&_outputFrame); });
+    _outFrameSize = 0;
     return true;
 }
 

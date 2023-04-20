@@ -57,6 +57,7 @@ public:
     bool Convert(uint8_t* data, int size);
     void Close();
     FrameQueue& GetQueue() { return _toQueue; }
+    ~Resampler() { Close(); }
 
 private:
     AVFrame* _swrFrame = nullptr;
@@ -87,7 +88,8 @@ public:
     bool AddAudioOutput(const uint32_t sampleRate, const uint32_t channels,
         const uint32_t bitsPerSample, const AVSampleFormat format);
     AVFrame* Convert(uint32_t index, uint8_t* inBuf, uint32_t size);
-    bool Init(int outputFrameSize = 1024);
+    bool SetOutFrameSize(int outputFrameSize = 1024);
+    int GetOutFrameSize() const { return _outFrameSize; };
     bool Close();
     AudioInfo* GetInputInfo(uint32_t index);
 
@@ -100,6 +102,7 @@ private:
     AudioInfo _audioOutputInfo;
     AVFrame* _outputFrame = nullptr;
     bool _AdjustVolume();
+    int _outFrameSize = 0;
 };
 
 #endif // AUDIOMIXER_H

@@ -2,7 +2,7 @@
  * @Coding: utf-8
  * @Author: vector-wlc
  * @Date: 2023-02-20 19:18:17
- * @Description: 
+ * @Description:
  */
 
 #include "audio_widget.h"
@@ -13,6 +13,7 @@ AudioWidget::AudioWidget(QWidget* parent)
 {
     _CreateUi();
     _CreateConnect();
+    _mutebox->setChecked(true);
 }
 
 void AudioWidget::_CreateUi()
@@ -49,7 +50,6 @@ void AudioWidget::_CreateConnect()
     });
 
     void (QDoubleSpinBox::*valueChanged)(double) = &(QDoubleSpinBox::valueChanged);
-
 
     connect(_volumeBox, valueChanged, [this] {
         emit SetVolumeScale(_volumeBox->value());

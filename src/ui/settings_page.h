@@ -18,6 +18,8 @@ public:
         Encoder<MediaType::AUDIO>::Param audioParam;
         Encoder<MediaType::VIDEO>::Param videoParam;
         std::string outputDir;
+        std::string liveUrl;
+        std::string liveName;
     };
     SettingsPage(Param* param, QWidget* parent = nullptr);
 
@@ -28,12 +30,15 @@ private:
     QGroupBox* _InitVideoUi();
     QGroupBox* _InitAudioUi();
     QGroupBox* _InitOutputUi();
+    QGroupBox* _InitLiveUi();
     Param* _param = nullptr;
     QSpinBox* _videoBitRateBox = nullptr;
     QSpinBox* _videoFpsBox = nullptr;
     QComboBox* _videoEncoderBox = nullptr;
     QSpinBox* _audioBitRateBox = nullptr;
     QLineEdit* _fileDirEdit = nullptr;
+    QLineEdit* _liveUrlEdit = nullptr;
+    QLineEdit* _liveNameEdit = nullptr;
     QPushButton* _selDirBtn = nullptr;
     QPushButton* _applyBtn = nullptr;
     QPushButton* _cancelBtn = nullptr;

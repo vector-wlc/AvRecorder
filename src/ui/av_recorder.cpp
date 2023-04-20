@@ -18,6 +18,9 @@ AvRecorder::AvRecorder(QWidget* parent)
     _settingsParam.videoParam.fps = 30;
     _settingsParam.videoParam.name = Encoder<MediaType::VIDEO>::GetUsableEncoders().front();
     _settingsParam.outputDir = ".";
+    _settingsParam.liveUrl = "rtmp://127.0.0.1:1935";
+    _settingsParam.liveName = "stream";
+
     WgcCapturer::Init();
     _InitUi();
     _InitConnect();
@@ -40,12 +43,34 @@ void AvRecorder::_InitConnect()
 
     connect(_recordBtn, &QPushButton::released, [this] {
         if (!_isRecord) {
-            _StartRecord();
+            auto fileName = _settingsParam.outputDir;
+            if (fileName.back() != '\\') {
+                fileName.push_back('\\');
+            }
+            fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
+            __CheckNo(_StartStream(fileName, "mp4"));
+            _liveBtn->setEnabled(false);
             _recordBtn->setText("停止录制");
         } else {
-            _StopRecord();
+            _StopStream();
+            _liveBtn->setEnabled(true);
             _recordBtn->setText("开始录制");
         }
+        _isRecord = !_isRecord;
+    });
+    connect(_liveBtn, &QPushButton::released, [this] {
+        if (!_isLive) {
+            auto fileName = _settingsParam.liveUrl + "/" + _settingsParam.liveName;
+            bool isRtsp = _settingsParam.liveUrl.find("rtsp") != std::string::npos;
+            __CheckNo(_StartStream(fileName, isRtsp ? "rtsp" : "flv"));
+            _recordBtn->setEnabled(false);
+            _liveBtn->setText("停止直播");
+        } else {
+            _StopStream();
+            _recordBtn->setEnabled(true);
+            _liveBtn->setText("开始直播");
+        }
+        _isLive = !_isLive;
     });
     connect(_microphoneWidget, &AudioWidget::SetVolumeScale, [this](float scale) {
         _audioRecorder.SetVolumeScale(scale, MICROPHONE_INDEX);
@@ -106,7 +131,7 @@ void AvRecorder::_InitConnect()
         info = _audioRecorder.GetCaptureInfo(SPEAKER_INDEX);
         _speakerWidget->ShowVolume(info == nullptr ? 0 : info->volume);
         // 状态栏
-        if (_isRecord) {
+        if (_isRecord || _isLive) {
             int interval = _recordTime.secsTo(QTime::currentTime());
             int sec = interval % 60;
             interval /= 60;
@@ -125,7 +150,7 @@ void AvRecorder::_InitConnect()
 
 AvRecorder::~AvRecorder()
 {
-    _StopRecord();
+    _StopStream();
     _StopPreview();
     _StopCapture();
     WgcCapturer::Uninit();
@@ -164,7 +189,10 @@ void AvRecorder::_StartCapture(VideoCapturer::Method method)
     _DealCapture();
     _isDrawCursorBox->setEnabled(true);
     _recordBtn->setEnabled(true);
+    _liveBtn->setEnabled(true);
     _videoRecorder.SetIsDrawCursor(_isDrawCursorBox->isChecked());
+    _audioRecorder.SetVolumeScale(_microphoneWidget->GetVolume(), MICROPHONE_INDEX);
+    _audioRecorder.SetVolumeScale(_speakerWidget->GetVolume(), SPEAKER_INDEX);
 }
 
 void AvRecorder::_DealCapture()
@@ -209,32 +237,25 @@ void AvRecorder::_StopPreview()
     _otherTimer.stop();
 }
 
-void AvRecorder::_StartRecord()
+bool AvRecorder::_StartStream(std::string_view path, std::string_view format)
 {
-    auto fileName = _settingsParam.outputDir;
-    if (fileName.back() != '\\') {
-        fileName.push_back('\\');
-    }
-    fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
-    // fileName += "test.mp4";
-    __CheckNo(_avMuxer.Open(fileName));
-    __CheckNo(_audioRecorder.LoadMuxer(_avMuxer));
-    __CheckNo(_videoRecorder.LoadMuxer(_avMuxer));
-    __CheckNo(_avMuxer.WriteHeader());
-    __CheckNo(_audioRecorder.StartRecord());
-    __CheckNo(_videoRecorder.StartRecord());
+    __CheckBool(_avMuxer.Open(path, format));
+    __CheckBool(_audioRecorder.LoadMuxer(_avMuxer));
+    __CheckBool(_videoRecorder.LoadMuxer(_avMuxer));
+    __CheckBool(_avMuxer.WriteHeader());
+    __CheckBool(_audioRecorder.StartRecord());
+    __CheckBool(_videoRecorder.StartRecord());
     _recordTime = QTime::currentTime();
-    _captureStatusLabel->setText("状态: 正在录制");
+    _captureStatusLabel->setText("状态: 正在工作");
     _settingsBtn->setEnabled(false);
     _captureListWidget->setEnabled(false);
     _updateListBtn->setEnabled(false);
     _captureMethodBox->setEnabled(false);
-    _isRecord = true;
+    return true;
 }
 
-void AvRecorder::_StopRecord()
+void AvRecorder::_StopStream()
 {
-    _isRecord = false;
     _audioRecorder.StopRecord();
     _videoRecorder.StopRecord();
     _avMuxer.Close();
@@ -305,11 +326,14 @@ QVBoxLayout* AvRecorder::_InitOtherUi()
     _updateListBtn = new QPushButton("刷新窗口列表");
     _recordBtn = new QPushButton("开始录制");
     _recordBtn->setEnabled(false);
+    _liveBtn = new QPushButton("开始直播");
+    _liveBtn->setEnabled(false);
     _settingsBtn = new QPushButton("设置");
     auto layout = new QVBoxLayout;
     layout->addWidget(_isDrawCursorBox);
     layout->addWidget(_updateListBtn);
     layout->addWidget(_recordBtn);
+    layout->addWidget(_liveBtn);
     layout->addWidget(_settingsBtn);
     return layout;
 }

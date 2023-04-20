@@ -34,14 +34,8 @@ bool AudioRecorder::Open(
             format.wBitsPerSample, _GetAVSampleFormat(format.wBitsPerSample)));
     }
     __CheckBool(_mixer.AddAudioOutput(sampleRate, channels, bitsPerSample, format));
-    // 临时打开封装器，为的是获取编码器的一些信息
-    AvMuxer muxer;
-    __CheckBool(muxer.Open("tmp.mp4"));
     _param = param;
-    int streamIndex = -1;
-    __CheckBool((streamIndex = muxer.AddAudioStream(param)) != -1);
-    __CheckBool(_mixer.Init(muxer.GetCodecCtx(streamIndex)->frame_size));
-    muxer.Close();
+    __CheckBool(_mixer.SetOutFrameSize(1024));
 
     for (int index = 0; index < deviceTypes.size(); ++index) {
         if (_mixer.GetInputInfo(index) != nullptr) {
@@ -100,6 +94,12 @@ void AudioRecorder::_Callback(void* data, size_t size, void* userInfo)
     }
     if (*(info->isRecord)) {
         __CheckNo(info->streamIndex && *(info->streamIndex) != -1);
+        int frameSize = info->muxer->GetCodecCtx(*info->streamIndex)->frame_size;
+        if (info->mixer->GetOutFrameSize() != frameSize) {
+            __DebugPrint("Change frame size from %d to %d", info->mixer->GetOutFrameSize(), frameSize);
+            info->mixer->SetOutFrameSize(frameSize);
+            return;
+        }
         __CheckNo(info->muxer->Write(frame, *(info->streamIndex)));
     }
 }

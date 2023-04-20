@@ -11,6 +11,7 @@ Built by MSVC 2022 CMake + Qt_64 5.15.0 + FFmpeg 5.1.0
 
 ## 目前完成的功能
 
+* 可以进行 RTSP 推流 (直播)
 * 使用 D3D11 加速像素色彩空间转换
 * 使用 DXGI 录制桌面
 * 使用 BitBlt 录制窗口
@@ -29,7 +30,6 @@ Built by MSVC 2022 CMake + Qt_64 5.15.0 + FFmpeg 5.1.0
 * 暂停录制
 * 截取画面
 * 画面合成
-* 推流功能
 
 ## 遇到的坑
 

@@ -25,7 +25,7 @@ extern std::mutex __mtx;
 // ***************
 // debug function
 
-// #define __AVDEBUG
+#define __AVDEBUG
 
 #ifdef __AVDEBUG
 #define __DebugPrint(fmtStr, ...) \

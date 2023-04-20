@@ -38,6 +38,7 @@ private:
     AudioWidget* _microphoneWidget = nullptr;
     AudioWidget* _speakerWidget = nullptr;
     QPushButton* _recordBtn = nullptr;
+    QPushButton* _liveBtn = nullptr;
     QPushButton* _settingsBtn = nullptr;
     QCheckBox* _isDrawCursorBox = nullptr;
     Timer _videoRenderTimer;
@@ -45,6 +46,7 @@ private:
     QListWidget* _captureListWidget = nullptr;
     QPushButton* _updateListBtn = nullptr;
     bool _isRecord = false;
+    bool _isLive = false;
     void _InitUi();
     QComboBox* _captureMethodBox = nullptr;
     QLabel* _captureStatusLabel = nullptr;
@@ -65,7 +67,7 @@ private:
     void _StartPreview();
     void _DealCapture();
     void _StopPreview();
-    void _StartRecord();
-    void _StopRecord();
+    bool _StartStream(std::string_view path, std::string_view format);
+    void _StopStream();
     void _InitConnect();
 };

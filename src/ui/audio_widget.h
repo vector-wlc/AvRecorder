@@ -28,6 +28,11 @@ public:
         _nameLabel->setText(name.c_str());
     }
 
+    double GetVolume()
+    {
+        return _mutebox->isChecked() ? 0 : _volumeBox->value();
+    }
+
 private:
     void _CreateUi();
     void _CreateConnect();

@@ -26,7 +26,7 @@ public:
     {
         Close();
     }
-    bool Open(std::string_view filePath);
+    bool Open(std::string_view filePath, std::string_view format = "mp4");
     bool WriteHeader();
     // 返回值为创建的流的索引 ，-1表示创建失败
     int AddVideoStream(const Encoder<MediaType::VIDEO>::Param& param);
