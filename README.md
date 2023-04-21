@@ -11,7 +11,7 @@ Built by MSVC 2022 CMake + Qt_64 5.15.0 + FFmpeg 5.1.0
 
 ## 目前完成的功能
 
-* 可以进行 RTSP 推流 (直播)
+* 可以进行 RTSP/RTMP 推流 (直播)
 * 使用 D3D11 加速像素色彩空间转换
 * 使用 DXGI 录制桌面
 * 使用 BitBlt 录制窗口
@@ -33,6 +33,7 @@ Built by MSVC 2022 CMake + Qt_64 5.15.0 + FFmpeg 5.1.0
 
 ## 遇到的坑
 
+* 音频编码直接使用 `avcodec_find_encoder(AV_CODEC_ID_AAC)` AAC 编码器牛逼!
 * 鼠标绘制方面：不要使用 DrawIcon, 而应该使用 DrawIconEx 并且最后的参数设置为 DI_NORMAL | DI_COMPAT, 不然绘制出来的鼠标会有锯齿
 * DXGI 截屏为了能够让 GDI 进行鼠标绘制, _textureDesc.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE 应这样设置
 * 帧率控制: Sleep 千万不要简单的让时间除以帧率, 因为 C++ 中整数运算会直接截断, 导致视频的截取的频率会变快

@@ -47,8 +47,10 @@ void AvRecorder::_InitConnect()
             if (fileName.back() != '\\') {
                 fileName.push_back('\\');
             }
-            fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + ".mp4";
-            __CheckNo(_StartStream(fileName, "mp4"));
+            auto format = "mp4";
+            fileName += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss").toStdString() + "." + format;
+            // fileName += std::string("test.") + format;
+            __CheckNo(_StartStream(fileName, format));
             _liveBtn->setEnabled(false);
             _recordBtn->setText("停止录制");
         } else {

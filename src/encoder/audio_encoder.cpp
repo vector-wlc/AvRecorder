@@ -25,7 +25,7 @@ void Encoder<MediaType::AUDIO>::Close()
 bool Encoder<MediaType::AUDIO>::_Init(const Param& audioParam, AVFormatContext* fmtCtx)
 {
     // codec
-    __CheckBool(_codec = avcodec_find_encoder(fmtCtx->oformat->audio_codec));
+    __CheckBool(_codec = avcodec_find_encoder(AV_CODEC_ID_AAC));
     // codeccontext
     __CheckBool(_codecCtx = avcodec_alloc_context3(_codec));
     _codecCtx->sample_fmt = AV_SAMPLE_FMT_FLTP;

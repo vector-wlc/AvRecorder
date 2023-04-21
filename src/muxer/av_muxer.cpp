@@ -85,13 +85,7 @@ bool AvMuxer::Write(AVFrame* frame, int streamIndex, bool isEnd)
     while ((packet = info.encoder->Encode())) {
         av_packet_rescale_ts(packet, info.encoder->GetCtx()->time_base, info.stream->time_base);
         packet->stream_index = info.stream->index;
-        __DebugPrint("pts : %lld frame_size: %d", info.pts, info.encoder->GetCtx()->frame_size);
         __CheckBool(av_interleaved_write_frame(_fmtCtx, packet) >= 0);
-        // auto ret = av_interleaved_write_frame(_fmtCtx, packet);
-        //__DebugPrint("%d", ret);
-        //  if (ret < 0) {
-        //     break;
-        // }
     }
     info.encoder->AfterEncode();
     return true;
